@@ -241,21 +241,32 @@ function show(id){curTab=id;secs.forEach(s=>s.classList.toggle('hide',s.id!==id)
 function fitFor(g){if(!T)return;const L1=g&&layers[g].getLayers().length?layers[g]:null;
   try{if(g==='route'&&D.routeLine)map.fitBounds(D.routeLine.getBounds(),{padding:[30,30]});else if(L1){const b=L.featureGroup(L1.getLayers()).getBounds();if(b.isValid())map.fitBounds(b.pad(.1),{maxZoom:15})}else map.setView([T.dest.lat,T.dest.lon],12)}catch(e){}}
 
-/* ================= geocoding (Photon) ================= */
-function placeLabel(p){const pr=p.properties||{};const main=pr.name||pr.city||pr.town||pr.village||'';const sub=[pr.city&&pr.city!==main?pr.city:'',pr.county||pr.state,pr.country].filter(Boolean).join(', ');return{main,sub}}
-function autocomplete(inp,box,onPick){let t=null,ctl=null;
+/* ================= geocoding: Photon, poi Nominatim ================= */
+function fromPhoton(x){const pr=x.properties||{};const name=pr.name||pr.city||pr.town||pr.village||'';
+  const sub=[pr.city&&pr.city!==name?pr.city:'',pr.county||pr.state,pr.country].filter(Boolean).join(', ');
+  return{name,sub,lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0]}}
+function fromNomi(x){const a=x.address||{};const name=x.name||a.village||a.town||a.city||a.hamlet||String(x.display_name||'').split(',')[0];
+  const sub=[a.county||a.province,a.state,a.country].filter(Boolean).filter(v=>v!==name).join(', ');
+  return{name,sub,lat:+x.lat,lon:+x.lon}}
+async function geoSearch(q,limit,signal){
+  try{const r=await fetch(`https://photon.komoot.io/api/?q=${enc(q)}&limit=${limit}&lat=44.4&lon=9.0`,{signal});
+    if(r.ok){const j=await r.json();const f=(j.features||[]).filter(x=>x.geometry).map(fromPhoton).filter(p=>p.name);if(f.length)return f}}
+  catch(e){if(e.name==='AbortError')throw e}
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${enc(q)}&format=jsonv2&addressdetails=1&limit=${limit}&accept-language=it`,{signal});
+  if(!r.ok)throw new Error('geo');const j=await r.json();return(Array.isArray(j)?j:[]).map(fromNomi).filter(p=>p.name&&isFinite(p.lat))}
+function autocomplete(inp,box,onPick){let t=null,ctl=null,res=[];
   inp.addEventListener('input',()=>{clearTimeout(t);const q=inp.value.trim();if(q.length<3){box.classList.add('hide');return}
-    t=setTimeout(async()=>{try{ctl&&ctl.abort();ctl=new AbortController();
-      const r=await fetch(`https://photon.komoot.io/api/?q=${enc(q)}&lang=it&limit=6`,{signal:ctl.signal});const j=await r.json();
-      const f=(j.features||[]).filter(x=>x.geometry);if(!f.length){box.classList.add('hide');return}
-      box.innerHTML=f.map((x,i)=>{const l=placeLabel(x);return `<button type="button" data-i="${i}">${esc(l.main)}<small>${esc(l.sub)}</small></button>`}).join('');box.classList.remove('hide');
-      box.onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;const x=f[+b.dataset.i],l=placeLabel(x);inp.value=l.main+(l.sub?', '+l.sub.split(', ')[0]:'');box.classList.add('hide');
-        onPick({name:l.main,sub:l.sub,lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0]})}}catch(e){}},300)});
-  inp.addEventListener('blur',()=>setTimeout(()=>box.classList.add('hide'),200))}
+    t=setTimeout(async()=>{try{ctl&&ctl.abort();ctl=new AbortController();res=await geoSearch(q,6,ctl.signal);
+      if(!res.length){box.innerHTML='<button type="button" disabled>Nessun risultato: prova ad aggiungere la provincia</button>';box.classList.remove('hide');return}
+      box.innerHTML=res.map((p,i)=>`<button type="button" data-i="${i}">${esc(p.name)}<small>${esc(p.sub)}</small></button>`).join('');box.classList.remove('hide')}
+      catch(e){if(e.name!=='AbortError'){box.innerHTML='<button type="button" disabled>Ricerca non disponibile: controlla la connessione</button>';box.classList.remove('hide')}}},400)});
+  box.addEventListener('pointerdown',e=>e.preventDefault());
+  box.addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b)return;const p=res[+b.dataset.i];inp.value=p.name+(p.sub?', '+p.sub.split(', ')[0]:'');box.classList.add('hide');onPick(p)});
+  inp.addEventListener('blur',()=>setTimeout(()=>box.classList.add('hide'),250))}
 autocomplete($('#fDest'),$('#sDest'),p=>destPick=p);
 autocomplete($('#fStart'),$('#sStart'),p=>startPick=p);
 $('#fDest').addEventListener('input',()=>destPick=null);
-async function geocodeOnce(q){const j=await getJSON(`https://photon.komoot.io/api/?q=${enc(q)}&lang=it&limit=1`);const x=(j.features||[])[0];if(!x)throw new Error('nf');const l=placeLabel(x);return{name:l.main,sub:l.sub,lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0]}}
+async function geocodeOnce(q){const r=await geoSearch(q,1);if(!r.length)throw new Error('nf');return r[0]}
 
 /* ================= form ================= */
 function fillForm(){$('#fStart').value=set.start.name;$('#fCons').value=set.cons;$('#fFuel').value=set.fuel;$('#fToll').value=set.toll;$('#fExtra').value=set.extra;$('#fRad').value=set.rad;$('#fNoToll').value=set.noToll;
