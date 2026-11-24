@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rotta Camper">
+<meta name="theme-color" content="#14264a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-512.png">
+<title>Rotta Camper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* VOICE: un compagno di viaggio esperto, asciutto, da rivista on the road.
+   IDEA: il quaderno di bordo del camperista — copertina blu notte, pagine sabbia, rotta tracciata in mappa.
+   PICTURE: la mappa vera con la traccia da Serino alla meta e i pin di soste, trattorie, negozi.
+   COLOUR and TYPE: blu navy dominante, blu acciaio di supporto, crema/sabbia per le pagine, terracotta solo come accento; DM Serif Display + Instrument Sans.
+   LAYOUT: desktop pannello a sinistra + mappa a destra; iPhone mappa in alto, schede sotto, barra sezioni scorrevole. */
+:root{--navy:#14264a;--navy2:#1e3766;--blue:#3a6fb0;--sky:#8fb3df;--cream:#f7f0e2;--sand:#ece0c8;--paper:#fffaf1;
+--ink:#16213a;--mute:#6a6656;--line:#ddcfb3;--terra:#c0673d;--ok:#3d7a55;--warn:#b88a1e;--bad:#b4462f;
+--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%}
+body{background:var(--cream);color:var(--ink);font:16px/1.5 "Instrument Sans",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+h1,h2,h3{font-family:"DM Serif Display",Georgia,serif;font-weight:400;line-height:1.05;margin:0;text-wrap:balance}
+p{margin:0}
+a{color:var(--blue)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;min-height:44px;border-radius:11px;border:1px solid var(--line);background:var(--paper);padding:0 15px;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.btn{background:var(--navy);color:var(--cream);border-color:var(--navy)}
+.btn-blue{background:var(--blue);color:#fff;border-color:var(--blue)}
+.small{min-height:36px;padding:0 12px;font-size:14px}
+input,select{width:100%;font-size:16px;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff}
+label{display:block;font-size:13px;font-weight:700;color:var(--mute);margin-bottom:5px}
+.app{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,500px);height:100dvh}
+.panel{overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(30px + var(--sab))}
+#map{height:100%;background:#dfe7ef}
+@media(max-width:900px){.app{display:block;height:auto}#mapWrap{position:sticky;top:0;z-index:5;height:40vh;border-bottom:3px solid var(--navy)}.panel{overflow:visible}}
+#mapWrap{position:relative}
+.maplegend{position:absolute;z-index:500;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 20px)}
+.maplegend span{font-size:12px;font-weight:600;background:rgba(255,250,241,.94);border-radius:99px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.maplegend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+/* cover */
+.cover{background:var(--navy);color:var(--cream);padding:calc(20px + var(--sat)) 20px 20px;position:relative;overflow:hidden}
+.cover::before{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;border:1px dashed rgba(143,179,223,.35)}
+.cover::after{content:"";position:absolute;right:-20px;top:-20px;width:160px;height:160px;border-radius:50%;border:1px dashed rgba(143,179,223,.25)}
+.brandrow{display:flex;align-items:center;gap:10px;justify-content:space-between;position:relative;z-index:1}
+.brand{font-family:"DM Serif Display",serif;font-size:20px}
+.brand em{color:var(--sky)}
+.cover .ghost{background:transparent;border-color:rgba(247,240,226,.35);color:var(--cream)}
+.dest{font-size:clamp(42px,9vw,64px);margin:18px 0 6px;position:relative;z-index:1}
+.dest small{display:block;font-family:"Instrument Sans",sans-serif;font-size:15px;color:var(--sky);font-weight:600;margin-bottom:6px}
+.dmeta{color:#e5dcc8;font-size:15px;position:relative;z-index:1}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(247,240,226,.18);border-radius:14px;overflow:hidden;margin-top:16px;position:relative;z-index:1}
+.kpis div{background:var(--navy2);padding:11px 12px}
+.kpis span{display:block;font-size:12px;color:#c9d6ea}
+.kpis b{font-family:"DM Serif Display",serif;font-weight:400;font-size:23px;white-space:nowrap}
+/* tabs */
+.tabs{position:sticky;top:0;z-index:4;display:flex;gap:6px;overflow-x:auto;padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+@media(max-width:900px){.tabs{top:40vh}}
+.tabs button{flex:none;min-height:40px;border-radius:99px;font-size:14px;background:var(--paper)}
+.tabs button[aria-selected=true]{background:var(--navy);color:var(--cream);border-color:var(--navy)}
+.sec{padding:18px 16px}
+.sec h2{font-size:30px;margin-bottom:4px}
+.lead{color:var(--mute);font-size:15px;margin-bottom:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.card h3{font-size:21px;margin-bottom:4px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media(max-width:420px){.row3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.field{margin-bottom:12px;position:relative}
+.sugg{position:absolute;z-index:30;left:0;right:0;top:100%;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:0 10px 30px rgba(0,0,0,.15);overflow:hidden}
+.sugg button{display:block;width:100%;text-align:left;border:0;border-radius:0;border-top:1px solid var(--line);background:#fff;font-weight:500;padding:10px 12px}
+.sugg button small{display:block;color:var(--mute);font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.note{font-size:13px;color:var(--mute)}
+.warnbox{font-size:14px;background:var(--sand);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+/* lists */
+.item{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;margin-bottom:10px;cursor:pointer}
+.item.hl{border-color:var(--blue);box-shadow:0 0 0 2px var(--sky)}
+.ihead{display:flex;gap:10px;align-items:flex-start}
+.pin{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;margin-top:2px}
+.iname{font-weight:700;font-size:16px;line-height:1.25}
+.itype{font-size:13px;color:var(--mute)}
+.dist{margin-left:auto;text-align:right;font-weight:700;font-size:14px;white-space:nowrap}
+.dist small{display:block;font-weight:500;color:var(--mute);font-size:12px}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.tag{font-size:12px;padding:3px 8px;border-radius:7px;background:var(--cream);border:1px solid var(--line);white-space:nowrap}
+.tag.good{background:#e4efe7;border-color:#b9d4c1;color:#265a3a}
+.tag.blue{background:#e3ecf8;border-color:#bfd2ec;color:#1f4a80}
+.tag.brand{background:var(--navy);border-color:var(--navy);color:var(--cream)}
+.links{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.links a{font-size:13px;font-weight:600;text-decoration:none;padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--navy)}
+.safety{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
+.safety i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.safety i.on{background:var(--ok)}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.filters button{min-height:36px;font-size:13px;border-radius:99px}
+.filters button[aria-pressed=true]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.loading{display:flex;gap:10px;align-items:center;color:var(--mute);font-size:15px;padding:14px 0}
+.spin{width:18px;height:18px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--blue);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation:none}}
+/* costs */
+.cost{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+.cost b{white-space:nowrap}
+.total{font-family:"DM Serif Display",serif;font-size:40px;line-height:1}
+.legs{display:flex;gap:8px;align-items:center;font-size:14px;margin:8px 0}
+.legs .dot{width:12px;height:12px;border-radius:50%;flex:none}
+.legs .line{flex:1;border-top:2px dashed var(--blue)}
+/* weather */
+.wx{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}
+.wd{flex:none;width:86px;scroll-snap-align:start;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center}
+.wd .day{font-size:12px;font-weight:700;color:var(--mute)}
+.wd svg{width:40px;height:40px;margin:4px auto;display:block}
+.wd .t{font-weight:700;white-space:nowrap}.wd .t span{color:var(--mute);font-weight:500}
+.wd .r{font-size:12px;color:var(--blue);white-space:nowrap}
+.wtable{width:100%;border-collapse:collapse;font-size:13px}
+.wtable th,.wtable td{padding:6px 4px;border-top:1px solid var(--line);text-align:center;white-space:nowrap}
+.wtable th:first-child,.wtable td:first-child{text-align:left;white-space:normal}
+.wscroll{overflow-x:auto}
+.trips{list-style:none;margin:0;padding:0}
+.trips li{display:flex;gap:6px;align-items:center;border-top:1px solid var(--line)}
+.trips li button.o{flex:1;text-align:left;border:0;background:transparent;font-weight:500}
+.trips li button.o b{display:block}
+.trips small{color:var(--mute)}
+.hide{display:none!important}
+.leaflet-popup-content{font:14px/1.4 "Instrument Sans",sans-serif}
+.leaflet-popup-content b{font-size:15px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="mapWrap"><div id="map" role="region" aria-label="Mappa del viaggio"></div><div class="maplegend" id="legend"></div></div>
+  <div class="panel" id="panel">
+    <header class="cover">
+      <div class="brandrow"><div class="brand">Rotta <em>Camper</em></div><button class="small ghost" id="toPlan">Nuovo viaggio</button></div>
+      <h1 class="dest" id="cDest"><small id="cKick">Quaderno di bordo</small>Dove si va?</h1>
+      <p class="dmeta" id="cMeta">Scegli meta e date: percorso, soste, trattorie, negozi e meteo arrivano da soli.</p>
+      <div class="kpis hide" id="kpis"></div>
+    </header>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+
+    <!-- PIANIFICA -->
+    <section class="sec" id="s-plan" data-tab="Pianifica">
+      <h2>Pianifica</h2><p class="lead">Partenza dal rimessaggio, meta e date. Tutto il resto lo calcolo io.</p>
+      <form class="card" id="planForm" autocomplete="off">
+        <div class="field"><label for="fDest">Destinazione (città o borgo)</label><input id="fDest" placeholder="es. Pietrasanta, Bra, Lione…" required><div class="sugg hide" id="sDest"></div></div>
+        <div class="row2"><div class="field"><label for="fD1">Partenza</label><input type="date" id="fD1" required></div><div class="field"><label for="fD2">Ritorno</label><input type="date" id="fD2" required></div></div>
+        <div class="field"><label for="fStart">Partenza da</label><input id="fStart"><div class="sugg hide" id="sStart"></div></div>
+        <details style="margin:4px 0 12px"><summary style="cursor:pointer;font-weight:700;min-height:36px">Consumi e costi</summary>
+          <div class="row3" style="margin-top:10px">
+            <div class="field"><label for="fCons">Litri/100 km</label><input type="number" id="fCons" step="0.1" min="4" max="25"></div>
+            <div class="field"><label for="fFuel">Gasolio €/l</label><input type="number" id="fFuel" step="0.01" min="0.5"></div>
+            <div class="field"><label for="fToll">Pedaggio €/km</label><input type="number" id="fToll" step="0.005" min="0"></div>
+            <div class="field"><label for="fExtra">Km extra in zona</label><input type="number" id="fExtra" step="10" min="0"></div>
+            <div class="field"><label for="fRad">Raggio soste</label><select id="fRad"><option value="5000">5 km</option><option value="10000">10 km</option><option value="15000">15 km</option><option value="25000">25 km</option></select></div>
+            <div class="field"><label for="fNoToll">Autostrade</label><select id="fNoToll"><option value="0">Sì</option><option value="1">Evita pedaggi</option></select></div>
+          </div>
+          <p class="note">Gasolio: media self MIMIT di novembre 2026. Pedaggio: classe B (camper a 2 assi), IVA inclusa, stima media.</p>
+        </details>
+        <div class="actions"><button class="btn" type="submit" id="goBtn">Traccia il viaggio</button></div>
+        <p class="note" id="planMsg" style="margin-top:8px"></p>
+      </form>
+      <div class="card"><h3>I miei viaggi</h3><div id="tripList"><p class="note">Ancora nessun viaggio salvato.</p></div></div>
+    </section>
+
+    <section class="sec hide" id="s-route" data-tab="Viaggio"></section>
+    <section class="sec hide" id="s-stay" data-tab="Soste"></section>
+    <section class="sec hide" id="s-move" data-tab="Muoversi"></section>
+    <section class="sec hide" id="s-food" data-tab="Trattorie"></section>
+    <section class="sec hide" id="s-shop" data-tab="Shopping"></section>
+    <section class="sec hide" id="s-around" data-tab="Dintorni"></section>
+    <section class="sec hide" id="s-wx" data-tab="Meteo"></section>
+    <p class="note" style="padding:0 16px">Dati © OpenStreetMap contributors (ODbL) · Mappa © CARTO · Percorso OSRM · Meteo Open-Meteo. park4night si apre con link diretto sulla zona.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+{
+/* ================= utilities ================= */
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const R=6371;const rad=x=>x*Math.PI/180;
+const hav=(a,b,c,d)=>{const x=rad(c-a),y=rad(d-b),h=Math.sin(x/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+const km=d=>d<1?Math.round(d*1000)+' m':(d<10?d.toFixed(1):Math.round(d))+' km';
+const eur=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n||0);
+const hm=s=>{const m=Math.round(s/60),h=Math.floor(m/60);return h?`${h} h ${String(m%60).padStart(2,'0')}`:`${m} min`};
+const pd=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fdate=(s,o)=>pd(s).toLocaleDateString('it-IT',o);
+const cap=s=>s?s[0].toUpperCase()+s.slice(1):'';
+const today=iso(new Date());
+const enc=encodeURIComponent;
+async function getJSON(url,opt={},ms=25000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{...opt,signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}}
+
+/* ================= defaults & state ================= */
+const DEF={start:{name:'Rimessaggio Serino — Bavari, Genova',lat:44.4330,lon:8.9950},cons:9.5,fuel:2.20,toll:0.105,extra:0,rad:'15000',noToll:'0'};
+let set=Object.assign({},DEF,LS.get('rc_settings',{}));
+let trips=LS.get('rc_trips',[]);
+let T=null; // current trip {dest:{name,sub,lat,lon}, d1,d2}
+let D={}; // fetched data
+let destPick=null,startPick=set.start;
+
+/* ================= map ================= */
+const map=L.map('map',{zoomControl:true,attributionControl:true}).setView([44.43,8.99],7);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+const COL={start:'#14264a',dest:'#c0673d',area:'#1e3766',camp:'#3a6fb0',park:'#5b8fc9',dump:'#7a8aa3',food:'#c0673d',shop:'#14264a',brand:'#d6a645',station:'#3d7a55',taxi:'#b88a1e',sight:'#3a6fb0',stadium:'#1e3766',outlet:'#d6a645',bus:'#3d7a55'};
+const pinIcon=(c,txt,big)=>L.divIcon({className:'',iconSize:big?[34,44]:[26,34],iconAnchor:big?[17,42]:[13,32],popupAnchor:[0,-30],
+  html:`<svg viewBox="0 0 26 34" width="${big?34:26}" height="${big?44:34}"><path d="M13 33C13 33 2 20 2 12.5A11 11 0 0 1 24 12.5C24 20 13 33 13 33Z" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12.5" r="${txt?7:4}" fill="#fff" opacity="${txt?1:.9}"/>${txt?`<text x="13" y="16" text-anchor="middle" font-size="9" font-weight="700" font-family="Instrument Sans,sans-serif" fill="${c}">${esc(txt)}</text>`:''}</svg>`});
+const layers={};['route','stay','move','food','shop','around','wx'].forEach(k=>layers[k]=L.layerGroup());
+let baseLayer=L.layerGroup().addTo(map);
+const markers={};
+function addMarker(group,id,lat,lon,color,txt,popup){const m=L.marker([lat,lon],{icon:pinIcon(color,txt)}).bindPopup(popup);m.on('click',()=>hl(id));layers[group].addLayer(m);markers[id]=m;return m}
+function hl(id){document.querySelectorAll('.item.hl').forEach(x=>x.classList.remove('hl'));const el=document.getElementById('it-'+id);if(el){el.classList.add('hl');el.scrollIntoView({block:'nearest',behavior:'smooth'})}}
+function legend(items){$('#legend').innerHTML=items.map(([c,l])=>`<span><i style="background:${c}"></i>${esc(l)}</span>`).join('')}
+
+/* ================= tabs ================= */
+const secs=[...document.querySelectorAll('.sec')];let curTab='s-plan';
+function renderTabs(){$('#tabs').innerHTML=secs.filter(s=>s.id==='s-plan'||T).map(s=>`<button role="tab" aria-selected="${s.id===curTab}" data-t="${s.id}">${s.dataset.tab}</button>`).join('')}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(b)show(b.dataset.t)});
+function show(id){curTab=id;secs.forEach(s=>s.classList.toggle('hide',s.id!==id));renderTabs();
+  const g={'s-route':'route','s-stay':'stay','s-move':'move','s-food':'food','s-shop':'shop','s-around':'around','s-wx':'wx'}[id];
+  Object.values(layers).forEach(l=>map.removeLayer(l));if(g)layers[g].addTo(map);
+  setTimeout(()=>{map.invalidateSize();fitFor(g)},60);
+  const lg={route:[[COL.start,'Rimessaggio'],[COL.dest,'Meta'],['#3a6fb0','Percorso']],stay:[[COL.area,'Area sosta'],[COL.camp,'Campeggio'],[COL.park,'Parcheggio camper'],[COL.dump,'Camper service']],move:[[COL.station,'Stazione'],[COL.taxi,'Taxi'],[COL.dest,'Centro']],food:[[COL.food,'Trattoria / osteria']],shop:[[COL.brand,'Marchio heritage'],[COL.shop,'Boutique / multimarca']],around:[[COL.sight,'Da vedere'],[COL.stadium,'Stadio'],[COL.outlet,'Outlet']],wx:[['#3a6fb0','Punti meteo']]}[g]||[];
+  legend(lg);const tb=document.querySelector(`[data-t="${id}"]`);tb&&tb.scrollIntoView({inline:'center',block:'nearest'});
+  if(innerWidth<=900)window.scrollTo({top:0})}
+function fitFor(g){if(!T)return;const L1=g&&layers[g].getLayers().length?layers[g]:null;
+  try{if(g==='route'&&D.routeLine)map.fitBounds(D.routeLine.getBounds(),{padding:[30,30]});else if(L1){const b=L.featureGroup(L1.getLayers()).getBounds();if(b.isValid())map.fitBounds(b.pad(.1),{maxZoom:15})}else map.setView([T.dest.lat,T.dest.lon],12)}catch(e){}}
+
+/* ================= geocoding (Photon) ================= */
+function placeLabel(p){const pr=p.properties||{};const main=pr.name||pr.city||pr.town||pr.village||'';const sub=[pr.city&&pr.city!==main?pr.city:'',pr.county||pr.state,pr.country].filter(Boolean).join(', ');return{main,sub}}
+function autocomplete(inp,box,onPick){let t=null,ctl=null;
+  inp.addEventListener('input',()=>{clearTimeout(t);const q=inp.value.trim();if(q.length<3){box.classList.add('hide');return}
+    t=setTimeout(async()=>{try{ctl&&ctl.abort();ctl=new AbortController();
+      const r=await fetch(`https://photon.komoot.io/api/?q=${enc(q)}&lang=it&limit=6`,{signal:ctl.signal});const j=await r.json();
+      const f=(j.features||[]).filter(x=>x.geometry);if(!f.length){box.classList.add('hide');return}
+      box.innerHTML=f.map((x,i)=>{const l=placeLabel(x);return `<button type="button" data-i="${i}">${esc(l.main)}<small>${esc(l.sub)}</small></button>`}).join('');box.classList.remove('hide');
+      box.onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;const x=f[+b.dataset.i],l=placeLabel(x);inp.value=l.main+(l.sub?', '+l.sub.split(', ')[0]:'');box.classList.add('hide');
+        onPick({name:l.main,sub:l.sub,lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0]})}}catch(e){}},300)});
+  inp.addEventListener('blur',()=>setTimeout(()=>box.classList.add('hide'),200))}
+autocomplete($('#fDest'),$('#sDest'),p=>destPick=p);
+autocomplete($('#fStart'),$('#sStart'),p=>startPick=p);
+$('#fDest').addEventListener('input',()=>destPick=null);
+async function geocodeOnce(q){const j=await getJSON(`https://photon.komoot.io/api/?q=${enc(q)}&lang=it&limit=1`);const x=(j.features||[])[0];if(!x)throw new Error('nf');const l=placeLabel(x);return{name:l.main,sub:l.sub,lat:x.geometry.coordinates[1],lon:x.geometry.coordinates[0]}}
+
+/* ================= form ================= */
+function fillForm(){$('#fStart').value=set.start.name;$('#fCons').value=set.cons;$('#fFuel').value=set.fuel;$('#fToll').value=set.toll;$('#fExtra').value=set.extra;$('#fRad').value=set.rad;$('#fNoToll').value=set.noToll;
+  if(!$('#fD1').value){const d=new Date();d.setDate(d.getDate()+7);$('#fD1').value=iso(d);d.setDate(d.getDate()+3);$('#fD2').value=iso(d)}}
+$('#fD1').addEventListener('change',()=>{if($('#fD2').value<$('#fD1').value)$('#fD2').value=$('#fD1').value});
+$('#planForm').addEventListener('submit',async e=>{e.preventDefault();const msg=$('#planMsg');msg.textContent='';
+  const d1=$('#fD1').value,d2=$('#fD2').value;if(!d1||!d2||d2<d1){msg.textContent='Controlla le date: il ritorno va dopo la partenza.';return}
+  let dest=destPick;try{if(!dest){msg.textContent='Cerco la destinazione…';dest=await geocodeOnce($('#fDest').value.trim())}}catch(err){msg.textContent='Non trovo la destinazione: scegline una dai suggerimenti.';return}
+  set={start:startPick||set.start,cons:+$('#fCons').value||DEF.cons,fuel:+$('#fFuel').value||DEF.fuel,toll:+$('#fToll').value>=0?+$('#fToll').value:DEF.toll,extra:+$('#fExtra').value||0,rad:$('#fRad').value,noToll:$('#fNoToll').value};LS.set('rc_settings',set);
+  msg.textContent='';openTrip({id:Date.now().toString(36),dest,d1,d2},true)});
+$('#toPlan').onclick=()=>{show('s-plan')};
+
+/* ================= trips ================= */
+function saveTrip(t){trips=trips.filter(x=>x.id!==t.id&&!(x.dest.name===t.dest.name&&x.d1===t.d1));trips.unshift(t);trips=trips.slice(0,30);LS.set('rc_trips',trips);renderTrips()}
+function renderTrips(){const box=$('#tripList');if(!trips.length){box.innerHTML='<p class="note">Ancora nessun viaggio salvato.</p>';return}
+  const fut=trips.filter(t=>t.d2>=today).sort((a,b)=>a.d1.localeCompare(b.d1)),past=trips.filter(t=>t.d2<today);
+  const li=t=>`<li><button class="o" data-o="${esc(t.id)}"><b>${esc(t.dest.name)}</b><small>${esc(fdate(t.d1,{day:'numeric',month:'short',year:'numeric'}))} → ${esc(fdate(t.d2,{day:'numeric',month:'short'}))}</small></button><button class="small" data-x="${esc(t.id)}" aria-label="Elimina">✕</button></li>`;
+  box.innerHTML=`${fut.length?`<p class="note" style="font-weight:700;margin-top:6px">In programma</p><ul class="trips">${fut.map(li).join('')}</ul>`:''}${past.length?`<p class="note" style="font-weight:700;margin-top:10px">Fatti</p><ul class="trips">${past.map(li).join('')}</ul>`:''}`}
+$('#tripList').addEventListener('click',e=>{const o=e.target.closest('[data-o]'),x=e.target.closest('[data-x]');
+  if(o){const t=trips.find(t=>t.id===o.dataset.o);if(t)openTrip(t,false)}
+  if(x){if(!x.dataset.sure){x.dataset.sure=1;x.textContent='Elimina?';return}trips=trips.filter(t=>t.id!==x.dataset.x);LS.set('rc_trips',trips);renderTrips()}});
+
+/* ================= open trip ================= */
+function nights(t){return Math.round((pd(t.d2)-pd(t.d1))/864e5)}
+function openTrip(t,isNew){T=t;D={};Object.values(layers).forEach(l=>l.clearLayers());baseLayer.clearLayers();saveTrip(t);
+  const n=nights(t);$('#cKick').textContent=t.d2<today?'Viaggio fatto':t.d1<=today?'In viaggio':`Tra ${Math.round((pd(t.d1)-pd(today))/864e5)} giorni`;
+  $('#cDest').innerHTML=`<small>${esc($('#cKick').textContent)}</small>${esc(t.dest.name)}`;
+  $('#cMeta').textContent=`${cap(fdate(t.d1,{weekday:'short',day:'numeric',month:'long'}))} → ${fdate(t.d2,{weekday:'short',day:'numeric',month:'long',year:'numeric'})} · ${n+1} giorni, ${n} ${n===1?'notte':'notti'}${t.dest.sub?' · '+t.dest.sub:''}`;
+  $('#kpis').classList.remove('hide');kpis();
+  L.marker([set.start.lat,set.start.lon],{icon:pinIcon(COL.start,'',true)}).bindPopup(`<b>${esc(set.start.name)}</b><br>Partenza`).addTo(baseLayer);
+  L.marker([t.dest.lat,t.dest.lon],{icon:pinIcon(COL.dest,'',true)}).bindPopup(`<b>${esc(t.dest.name)}</b><br>Centro`).addTo(baseLayer);
+  secs.forEach(s=>{if(s.id!=='s-plan')s.innerHTML=`<h2>${s.dataset.tab}</h2><div class="loading"><span class="spin"></span>Carico i dati…</div>`});
+  show('s-route');
+  loadRoute();loadLocal();loadWide();loadWx()}
+function kpis(){const r=D.route,c=costs();$('#kpis').innerHTML=`<div><span>Andata</span><b>${r?km(r.dist):'…'}</b></div><div><span>Guida camper</span><b>${r?hm(r.time):'…'}</b></div><div><span>Costo A/R</span><b>${r?eur(c.total):'…'}</b></div>`}
+
+/* ================= route & costs ================= */
+async function osrm(a,b,noToll){const u=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true${noToll?'&exclude=toll':''}`;const j=await getJSON(u,{},30000);if(j.code!=='Ok'||!j.routes?.length)throw new Error(j.code||'route');return j.routes[0]}
+async function loadRoute(){const t=T,sec=$('#s-route');let r,note='';
+  try{try{r=await osrm(set.start,t.dest,set.noToll==='1')}catch(e){if(set.noToll==='1'){r=await osrm(set.start,t.dest,false);note='Il server di percorso non ha accettato "evita pedaggi": mostro il percorso standard.'}else throw e}}
+  catch(e){if(t!==T)return;sec.innerHTML=`<h2>Viaggio</h2><div class="warnbox">Non riesco a calcolare il percorso adesso (server OSRM non raggiungibile).</div><button class="btn" id="rRetry">Riprova</button>`;$('#rRetry').onclick=loadRoute;return}
+  if(t!==T)return;
+  const steps=r.legs.flatMap(l=>l.steps||[]);const mw=steps.filter(s=>/(^|[;\s])A\s?\d/.test(s.ref||'')||/autostrada|autoroute|autobahn|autopista/i.test(s.name||'')).reduce((a,s)=>a+s.distance,0)/1000;
+  D.route={dist:r.distance/1000,time:r.duration*1.15+Math.floor(r.duration*1.15/7200)*900,mw:set.noToll==='1'&&!note?0:mw,geom:r.geometry,note,
+    via:[...new Set(steps.map(s=>(s.ref||'').split(';')[0]).filter(x=>/^A\s?\d/.test(x)))].slice(0,8)};
+  const line=L.geoJSON(r.geometry,{style:{color:'#14264a',weight:7,opacity:.25}});const line2=L.geoJSON(r.geometry,{style:{color:'#3a6fb0',weight:4,dashArray:'1 0'}});
+  D.routeLine=L.featureGroup([line,line2]);layers.route.addLayer(D.routeLine);
+  renderRoute();kpis();if(curTab==='s-route')fitFor('route')}
+function costs(){const r=D.route;if(!r)return{};const kmAR=r.dist*2+(+set.extra||0),lit=kmAR*set.cons/100,fuel=lit*set.fuel,toll=r.mw*2*set.toll;return{kmAR,lit,fuel,toll,total:fuel+toll}}
+function renderRoute(){const r=D.route,c=costs(),t=T,n=nights(t);
+  const nav=`https://www.google.com/maps/dir/?api=1&origin=${set.start.lat},${set.start.lon}&destination=${t.dest.lat},${t.dest.lon}&travelmode=driving`;
+  const apple=`https://maps.apple.com/?saddr=${set.start.lat},${set.start.lon}&daddr=${t.dest.lat},${t.dest.lon}&dirflg=d`;
+  $('#s-route').innerHTML=`<h2>Il viaggio</h2><p class="lead">${esc(set.start.name)} → ${esc(t.dest.name)}</p>
+  ${r.note?`<div class="warnbox">${esc(r.note)}</div>`:''}
+  <div class="card"><div class="legs"><span class="dot" style="background:${COL.start}"></span><b>Serino</b><span class="line"></span><b>${esc(t.dest.name)}</b><span class="dot" style="background:${COL.dest}"></span></div>
+   <div class="row3" style="margin-top:12px"><div><span class="note">Distanza</span><div class="total" style="font-size:30px">${km(r.dist)}</div></div><div><span class="note">Guida in camper</span><div class="total" style="font-size:30px">${hm(r.time)}</div></div><div><span class="note">In autostrada</span><div class="total" style="font-size:30px">${km(r.mw)}</div></div></div>
+   <p class="note" style="margin-top:10px">Tempo da auto +15% per il camper, più una pausa di 15 minuti ogni 2 ore.${r.via.length?' Autostrade: '+esc(r.via.join(', '))+'.':''}</p>
+   <div class="links"><a href="${nav}" target="_blank" rel="noopener">Naviga con Google Maps</a><a href="${apple}" target="_blank" rel="noopener">Apple Mappe</a><a href="https://www.autostrade.it/it/il-viaggio/calcola-percorso" target="_blank" rel="noopener">Verifica pedaggio esatto</a></div></div>
+  <div class="card"><h3>Spesa prevista andata e ritorno</h3><div class="total" style="margin:6px 0 10px">${eur(c.total)}</div>
+   <div class="cost"><span>Km totali (A/R${set.extra?' + '+set.extra+' in zona':''})</span><b>${Math.round(c.kmAR)} km</b></div>
+   <div class="cost"><span>Gasolio: ${c.lit.toFixed(0)} l a ${set.cons} l/100 km × ${set.fuel.toFixed(2)} €/l</span><b>${eur(c.fuel)}</b></div>
+   <div class="cost"><span>Pedaggi classe B: ${Math.round(r.mw*2)} km × ${set.toll} €/km</span><b>${eur(c.toll)}</b></div>
+   <div class="cost"><span>Per notte (${n} ${n===1?'notte':'notti'}), solo viaggio</span><b>${n?eur(c.total/n):'—'}</b></div>
+   <p class="note" style="margin-top:8px">Il pedaggio è una stima: i km in autostrada li ricavo dal percorso, la tariffa varia per tratta. All'estero valgono altre regole (vignette in Svizzera e Austria, classi diverse in Francia). Valori modificabili in Pianifica → Consumi e costi.</p></div>
+  <div class="card"><h3>Durata</h3><div class="cost"><span>Giorni sul posto</span><b>${n+1}</b></div><div class="cost"><span>Ore di guida A/R</span><b>${hm(r.time*2)}</b></div>
+   <p class="note" style="margin-top:6px">${r.time>6*3600?'Oltre 6 ore di guida: valuta una tappa intermedia all\'andata.':'Si fa in giornata senza tappe intermedie.'}</p></div>
+  <div id="wxMini"></div>`;
+  renderWxMini()}
+
+/* ================= Overpass ================= */
+const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+async function overpass(q){let last;for(const u of OVP){try{return await getJSON(u,{method:'POST',body:'data='+enc(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}},70000)}catch(e){last=e}}throw last}
+const ll=e=>e.lat!=null?[e.lat,e.lon]:e.center?[e.center.lat,e.center.lon]:null;
+
+const HERITAGE=['ralph lauren','polo ralph','rrl','barbour','filson','woolrich','belstaff','levi','red wing','timberland','napapijri','fay','peuterey','stone island','c.p. company','cp company','brooks brothers','tommy hilfiger','lacoste','fred perry','carhartt','schott','paul & shark','paul&shark','harmont','north sails','sebago','clarks','dr. martens','dr martens','k-way','colmar','aspesi','boggi','hackett','gant','the north face','patagonia','l.l.bean','wrangler','lee','diesel','replay','blauer','herno','moncler','save the duck','ciesse','tod\'s','hogan','church','barena','sun68','manifattura ceccarelli','orvis','alpha industries','golden goose','superga','birkenstock','asics','new balance','vans','closed','massimo dutti','sandro','ermenegildo','zegna','corneliani','brunello','canali','etro','loro piana','luisa spagnoli','max mara','marina rinaldi','liu jo','pinko','twinset','elena miro','penny black','weekend max'];
+const LOWEND=['zara','h&m','primark','ovs','bershka','pull&bear','pull & bear','stradivarius','kiabi','pittarello','terranova','calzedonia','intimissimi','tezenis','decathlon','piazza italia','cisalfa','foot locker','alcott','celio','jack & jones','only','mango','takko','pepco','upim','coin casa','yamamay','goldenpoint','golden point','deichmann','scarpe&scarpe','scarpe & scarpe','bata','kasanova','carpisa','tally weijl','sorbino','conbipel','kik','action','tedi','motivi','oviesse','game 7 athletics','aw lab','jd sports','snipes','sportland','skechers','pandora','bijou brigitte','new yorker','reserved','sinsay','cropp','c&a','lidl'];
+const brandOf=t=>{const s=((t.brand||'')+' '+(t.name||'')+' '+(t['brand:wikidata']?'':'')).toLowerCase();return HERITAGE.find(b=>s.includes(b))};
+const isLow=t=>{const s=((t.brand||'')+' '+(t.name||'')).toLowerCase();return LOWEND.some(b=>s.includes(b))};
+
+async function loadLocal(){const t=T,{lat,lon}=t.dest,R1=+set.rad;
+  const q=`[out:json][timeout:60];(
+nwr["tourism"="caravan_site"](around:${R1},${lat},${lon});
+nwr["tourism"="camp_site"](around:${R1},${lat},${lon});
+nwr["amenity"="sanitary_dump_station"](around:${R1},${lat},${lon});
+nwr["amenity"="parking"]["motorhome"~"yes|designated"](around:${R1},${lat},${lon});
+nwr["amenity"="parking"]["caravan"="designated"](around:${R1},${lat},${lon});
+nwr["railway"="station"](around:${Math.max(R1,8000)},${lat},${lon});
+nwr["public_transport"="station"]["bus"="yes"](around:6000,${lat},${lon});
+nwr["amenity"="taxi"](around:6000,${lat},${lon});
+nwr["shop"~"^(clothes|shoes|boutique|fashion|fashion_accessories|leather)$"](around:3500,${lat},${lon});
+nwr["amenity"="restaurant"]["name"~"[Tt]rattoria|[Oo]steria|[Hh]osteria|[Ll]ocanda|[Bb]isteccheria|[Tt]averna|[Cc]antina"](around:10000,${lat},${lon});
+nwr["amenity"="restaurant"]["cuisine"~"regional"](around:6000,${lat},${lon});
+);out center tags;`;
+  try{const j=await overpass(q);if(t!==T)return;classify(j.elements||[]);renderStay();renderMove();renderFood();renderShop();loadBus()}
+  catch(e){if(t!==T)return;['s-stay','s-move','s-food','s-shop'].forEach(id=>{const s=$('#'+id);s.innerHTML=`<h2>${s.dataset.tab}</h2><div class="warnbox">Il server dei dati OpenStreetMap non risponde adesso: succede quando è carico.</div><button class="btn" data-retry>Riprova</button>`;s.querySelector('[data-retry]').onclick=()=>{s.innerHTML='<div class="loading"><span class="spin"></span>Riprovo…</div>';loadLocal()}})}}
+function classify(els){const t=T,c={lat:t.dest.lat,lon:t.dest.lon};const seen=new Set();D.stay=[];D.dump=[];D.station=[];D.taxi=[];D.shop=[];D.food=[];
+  els.forEach(e=>{const p=ll(e);if(!p)return;const g=e.tags||{};const key=e.type+e.id;if(seen.has(key))return;seen.add(key);
+    const o={id:key,lat:p[0],lon:p[1],t:g,name:g.name||'',d:hav(c.lat,c.lon,p[0],p[1])};
+    if(g.tourism==='caravan_site'){o.kind='area';D.stay.push(o)}
+    else if(g.tourism==='camp_site'){if(g.caravans==='no'||g.motorhome==='no')return;o.kind='camp';D.stay.push(o)}
+    else if(g.amenity==='parking'){o.kind='park';D.stay.push(o)}
+    else if(g.amenity==='sanitary_dump_station'){o.kind='dump';D.dump.push(o)}
+    else if(g.railway==='station'||g.public_transport==='station'){if(g.station==='subway'||g.railway==='station'||g.bus==='yes'){o.kind=g.station==='subway'?'metro':g.railway==='station'?'treno':'bus';D.station.push(o)}}
+    else if(g.amenity==='taxi')D.taxi.push(o);
+    else if(g.shop){if(isLow(g)||!g.name)return;o.brand=brandOf(g);D.shop.push(o)}
+    else if(g.amenity==='restaurant'){if(!g.name)return;o.tratt=/trattoria|osteria|hosteria|locanda|bisteccheria|taverna|cantina/i.test(g.name);D.food.push(o)}});
+  // dump stations inside an area count as service of that area
+  D.stay.forEach(s=>{s.dump=D.dump.some(d=>hav(s.lat,s.lon,d.lat,d.lon)<0.15)});
+  const ord={area:0,camp:1,park:2};D.stay.sort((a,b)=>score(b)-score(a)||a.d-b.d);D.station.sort((a,b)=>a.d-b.d);D.shop.sort((a,b)=>(!!b.brand-!!a.brand)||a.d-b.d);D.food.sort((a,b)=>(b.tratt-a.tratt)||a.d-b.d)}
+
+/* ---- soste ---- */
+const yes=v=>v&&v!=='no';
+function score(s){const g=s.t;let n=0;if(s.kind!=='park')n+=2;else if(g.motorhome==='designated')n+=1;if(yes(g.supervised))n+=2;if(yes(g.fee))n+=1;if(yes(g.lit))n+=1;if(g.barrier||g.fence_type||yes(g.fenced))n+=1;if(g.operator||g.website||g.phone||g['contact:phone'])n+=1;return Math.min(n,6)}
+const kindTxt={area:'Area sosta camper',camp:'Campeggio',park:'Parcheggio camper'};
+function svcTags(s){const g=s.t,T2=[];
+  if(yes(g.fee))T2.push(['A pagamento',''] );else if(g.fee==='no')T2.push(['Gratuito','good']);
+  if(yes(g.supervised))T2.push(['Custodito','good']);if(yes(g.lit))T2.push(['Illuminato','good']);if(g.barrier||yes(g.fenced))T2.push(['Recintato / sbarra','good']);
+  if(yes(g.power_supply)||yes(g.electricity))T2.push(['Corrente','blue']);if(yes(g.drinking_water)||yes(g.water_point))T2.push(['Acqua','blue']);
+  if(s.dump||yes(g.sanitary_dump_station))T2.push(['Scarico','blue']);if(yes(g.toilets))T2.push(['WC','blue']);if(yes(g.shower))T2.push(['Docce','blue']);
+  if(yes(g.internet_access))T2.push(['Wi-Fi','blue']);if(yes(g.dog)||g.dogs==='yes')T2.push(['Cani ammessi','good']);else if(g.dog==='no')T2.push(['Cani non ammessi','']);
+  if(g.capacity)T2.push([g.capacity+' posti','']);if(g.maxstay)T2.push(['Max '+g.maxstay,'']);if(g.opening_hours)T2.push([g.opening_hours,'']);
+  return T2.map(([l,c])=>`<span class="tag ${c}">${esc(l)}</span>`).join('')}
+function p4n(lat,lon){return `https://park4night.com/it/search?lat=${lat.toFixed(5)}&lng=${lon.toFixed(5)}&z=15`}
+function gmaps(lat,lon,q){return q?`https://www.google.com/maps/search/?api=1&query=${enc(q)}`:`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`}
+function web(g){const w=g.website||g['contact:website']||g.url;return w&&/^https?:\/\//i.test(w)?w:''}
+function phone(g){return g.phone||g['contact:phone']||''}
+function renderStay(){const t=T,sec=$('#s-stay'),L1=D.stay;layers.stay.clearLayers();
+  L1.forEach((s,i)=>addMarker('stay',s.id,s.lat,s.lon,COL[s.kind],String(i+1),`<b>${esc(s.name||kindTxt[s.kind])}</b><br>${kindTxt[s.kind]} · ${km(s.d)} dal centro`));
+  D.dump.filter(d=>!L1.some(s=>hav(s.lat,s.lon,d.lat,d.lon)<0.15)).forEach(d=>addMarker('stay',d.id,d.lat,d.lon,COL.dump,'',`<b>${esc(d.name||'Camper service')}</b><br>Carico/scarico · ${km(d.d)} dal centro`));
+  const bigR=+set.rad/1000;
+  sec.innerHTML=`<h2>Dove dormire</h2><p class="lead">${L1.length?`${L1.length} soluzioni entro ${bigR} km da ${esc(t.dest.name)}, prima le più strutturate.`:`Nessuna area o campeggio mappato entro ${bigR} km.`}</p>
+  <div class="warnbox">Gli indizi di sicurezza (<span class="safety"><i class="on"></i><i class="on"></i><i></i></span>) vengono dai dati OSM: area dedicata, custodia, sbarra, luci, gestore. Le recensioni vere, e i posti liberi segnalati dai camperisti, sono su park4night: c'è il link su ogni scheda.</div>
+  <div class="links" style="margin:0 0 12px"><a href="${p4n(t.dest.lat,t.dest.lon).replace('z=15','z=12')}" target="_blank" rel="noopener">Apri park4night sulla zona</a><a href="${gmaps(0,0,'area sosta camper '+t.dest.name)}" target="_blank" rel="noopener">Aree sosta su Google Maps</a><a href="https://www.campercontact.com/it" target="_blank" rel="noopener">Campercontact</a></div>
+  ${L1.map((s,i)=>{const g=s.t,sc=score(s),w=web(g),ph=phone(g);return `<article class="item" id="it-${s.id}" data-id="${s.id}">
+   <div class="ihead"><span class="pin" style="background:${COL[s.kind]}">${i+1}</span><div><div class="iname">${esc(s.name||kindTxt[s.kind])}</div><div class="itype">${kindTxt[s.kind]}${g.operator?' · '+esc(g.operator):''} <span class="safety" title="Indizi di sicurezza ${sc}/6">${[0,1,2,3,4,5].map(j=>`<i class="${j<sc?'on':''}"></i>`).join('')}</span></div></div>
+   <div class="dist">${km(s.d)}<small>dal centro</small></div></div>
+   <div class="tags">${svcTags(s)}<span class="tag blue" data-bus="${s.id}">Bus: …</span></div>
+   <div class="links"><a href="${p4n(s.lat,s.lon)}" target="_blank" rel="noopener">park4night qui</a><a href="https://www.google.com/maps/dir/?api=1&origin=${s.lat},${s.lon}&destination=${t.dest.lat},${t.dest.lon}&travelmode=transit" target="_blank" rel="noopener">Mezzi per il centro</a><a href="${uber(s.lat,s.lon,t.dest.lat,t.dest.lon)}" target="_blank" rel="noopener">Uber</a>${w?`<a href="${esc(w)}" target="_blank" rel="noopener">Sito</a>`:''}${ph?`<a href="tel:${esc(ph.replace(/\s/g,''))}">${esc(ph)}</a>`:''}<a href="${gmaps(s.lat,s.lon)}" target="_blank" rel="noopener">Mappa</a></div></article>`}).join('')}
+  ${D.dump.length?`<div class="card"><h3>Camper service</h3><p class="note">${D.dump.length} ${D.dump.length===1?'punto':'punti'} carico/scarico in zona: il più vicino al centro è ${esc(D.dump.sort((a,b)=>a.d-b.d)[0].name||'senza nome')} a ${km(D.dump[0].d)}.</p></div>`:''}`;
+  bindItems(sec,'stay');if(curTab==='s-stay')fitFor('stay')}
+function bindItems(sec,g){sec.querySelectorAll('.item').forEach(el=>el.addEventListener('click',e=>{if(e.target.closest('a'))return;const m=markers[el.dataset.id];if(m){if(innerWidth<=900)window.scrollTo({top:0,behavior:'smooth'});map.setView(m.getLatLng(),Math.max(map.getZoom(),15));m.openPopup();hl(el.dataset.id)}}))}
+const uber=(a,b,c,d)=>`https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${a}&pickup[longitude]=${b}&dropoff[latitude]=${c}&dropoff[longitude]=${d}`.replace(/\[/g,'%5B').replace(/\]/g,'%5D');
+
+async function loadBus(){const L1=D.stay.slice(0,30);if(!L1.length)return;const t=T;
+  const q=`[out:json][timeout:40];(${L1.map(s=>`node["highway"="bus_stop"](around:800,${s.lat},${s.lon});`).join('')});out;`;
+  try{const j=await overpass(q);if(t!==T)return;const st=(j.elements||[]).filter(e=>e.lat);
+    L1.forEach(s=>{let best=null;st.forEach(b=>{const d=hav(s.lat,s.lon,b.lat,b.lon);if(!best||d<best.d)best={d,n:b.tags?.name||''}});
+      const tr=D.station.reduce((m,x)=>{const d=hav(s.lat,s.lon,x.lat,x.lon);return !m||d<m.d?{d,n:x.name,k:x.kind}:m},null);
+      s.bus=best;s.near=tr;const el=document.querySelector(`[data-bus="${s.id}"]`);
+      if(el)el.textContent=(best?`Fermata bus a ${km(best.d)}`:'Nessuna fermata bus entro 800 m')+(tr&&tr.d<2.5?` · ${tr.k==='metro'?'metro':'stazione'} a ${km(tr.d)}`:'')})}
+  catch(e){document.querySelectorAll('[data-bus]').forEach(el=>el.textContent='Bus: dato non disponibile')}}
+
+/* ---- muoversi ---- */
+function renderMove(){const t=T,sec=$('#s-move');layers.move.clearLayers();
+  L.marker([t.dest.lat,t.dest.lon],{icon:pinIcon(COL.dest,'',true)}).bindPopup(`<b>Centro di ${esc(t.dest.name)}</b>`).addTo(layers.move);
+  D.station.slice(0,15).forEach(s=>addMarker('move',s.id,s.lat,s.lon,COL.station,s.kind==='metro'?'M':s.kind==='bus'?'B':'T',`<b>${esc(s.name||'Stazione')}</b><br>${km(s.d)} dal centro`));
+  D.taxi.forEach(s=>addMarker('move',s.id,s.lat,s.lon,COL.taxi,'Tx',`<b>${esc(s.name||'Posteggio taxi')}</b>`));
+  const fromStart=hav(set.start.lat,set.start.lon,t.dest.lat,t.dest.lon);
+  sec.innerHTML=`<h2>Muoversi</h2><p class="lead">Come arrivare in centro dalle soste, e cosa c'è in zona.</p>
+  <div class="card"><h3>${esc(t.dest.name)} in breve</h3>
+   <div class="cost"><span>Distanza in linea d'aria da Serino</span><b>${km(fromStart)}</b></div>
+   <div class="cost"><span>Stazioni treno / metro / bus</span><b>${D.station.length}</b></div>
+   <div class="cost"><span>Posteggi taxi in centro</span><b>${D.taxi.length||'nessuno mappato'}</b></div>
+   <div class="cost"><span>Sosta più vicina al centro</span><b>${D.stay.length?km(Math.min(...D.stay.map(s=>s.d))):'—'}</b></div>
+   <div class="links"><a href="${gmaps(0,0,'radio taxi '+t.dest.name)}" target="_blank" rel="noopener">Radio taxi locali</a><a href="${uber(t.dest.lat,t.dest.lon,t.dest.lat,t.dest.lon)}" target="_blank" rel="noopener">Apri Uber in zona</a><a href="https://www.google.com/maps/@${t.dest.lat},${t.dest.lon},14z/data=!5m1!1e2" target="_blank" rel="noopener">Linee dei mezzi</a></div>
+   <p class="note" style="margin-top:8px">Uber in Italia c'è solo in alcune città: l'app ti dice subito se nella zona c'è servizio. Nei borghi conta più il radio taxi o l'NCC del posto.</p></div>
+  ${D.stay.length?`<div class="card"><h3>Dalle soste al centro</h3>${D.stay.slice(0,8).map(s=>{const walk=s.d*1.3/4.5*60;return `<div class="cost"><span>${esc(s.name||kindTxt[s.kind])}<br><small class="note">${km(s.d)} · ${s.d<2.2?`a piedi circa ${Math.round(walk)} min`:s.d<12?'bici, bus o taxi':'serve un mezzo'}</small></span><span class="links" style="margin:0;flex:none"><a href="https://www.google.com/maps/dir/?api=1&origin=${s.lat},${s.lon}&destination=${t.dest.lat},${t.dest.lon}&travelmode=transit" target="_blank" rel="noopener">Mezzi</a><a href="${uber(s.lat,s.lon,t.dest.lat,t.dest.lon)}" target="_blank" rel="noopener">Uber</a></span></div>`}).join('')}</div>`:''}
+  <h3 style="font-size:22px;margin:16px 0 8px">Stazioni</h3>
+  ${D.station.length?D.station.slice(0,15).map(s=>`<article class="item" id="it-${s.id}" data-id="${s.id}"><div class="ihead"><span class="pin" style="background:${COL.station}">${s.kind==='metro'?'M':s.kind==='bus'?'B':'T'}</span><div><div class="iname">${esc(s.name||'Stazione')}</div><div class="itype">${s.kind==='metro'?'Metropolitana':s.kind==='bus'?'Autostazione':'Stazione ferroviaria'}${s.t.operator?' · '+esc(s.t.operator):''}</div></div><div class="dist">${km(s.d)}<small>dal centro</small></div></div></article>`).join(''):'<p class="note">Nessuna stazione mappata in zona: per il borgo servono bus locali o taxi.</p>'}`;
+  bindItems(sec,'move');if(curTab==='s-move')fitFor('move')}
+
+/* ---- trattorie ---- */
+function renderFood(){const t=T,sec=$('#s-food'),L1=D.food.slice(0,40);layers.food.clearLayers();
+  L1.forEach((s,i)=>addMarker('food',s.id,s.lat,s.lon,COL.food,String(i+1),`<b>${esc(s.name)}</b><br>${km(s.d)} dal centro`));
+  sec.innerHTML=`<h2>Trattorie e osterie</h2><p class="lead">${L1.length?`${L1.length} locali di cucina tipica entro 10 km.`:'Nessuna trattoria o osteria mappata in zona.'}</p>
+  <div class="warnbox">OpenStreetMap mi dice dove sono, non quanto sono buone: per scegliere le migliori apri recensioni e foto dal link di ogni locale.</div>
+  <div class="links" style="margin:0 0 12px"><a href="${gmaps(0,0,'trattoria osteria '+t.dest.name)}" target="_blank" rel="noopener">Trattorie su Google Maps</a><a href="https://www.google.com/search?q=${enc('migliori trattorie osterie '+t.dest.name+' Gambero Rosso Slow Food')}" target="_blank" rel="noopener">Guide (Slow Food, Gambero Rosso)</a></div>
+  ${L1.map((s,i)=>{const g=s.t,w=web(g),ph=phone(g);return `<article class="item" id="it-${s.id}" data-id="${s.id}"><div class="ihead"><span class="pin" style="background:${COL.food}">${i+1}</span><div><div class="iname">${esc(s.name)}</div><div class="itype">${esc([g.cuisine?g.cuisine.replace(/;/g,', ').replace(/_/g,' '):'',g['addr:street']?(g['addr:street']+(g['addr:housenumber']?' '+g['addr:housenumber']:'')):'',g['addr:city']].filter(Boolean).join(' · '))}</div></div><div class="dist">${km(s.d)}<small>dal centro</small></div></div>
+   <div class="tags">${s.tratt?'<span class="tag good">Cucina tipica</span>':''}${g.opening_hours?`<span class="tag">${esc(g.opening_hours)}</span>`:''}${yes(g.outdoor_seating)?'<span class="tag">Dehors</span>':''}${yes(g.reservation)||g.reservation==='recommended'?'<span class="tag blue">Meglio prenotare</span>':''}${yes(g.dog)?'<span class="tag good">Cani ok</span>':''}</div>
+   <div class="links"><a href="${gmaps(0,0,s.name+' '+(g['addr:city']||t.dest.name))}" target="_blank" rel="noopener">Recensioni</a>${w?`<a href="${esc(w)}" target="_blank" rel="noopener">Sito</a>`:''}${ph?`<a href="tel:${esc(ph.replace(/\s/g,''))}">${esc(ph)}</a>`:''}</div></article>`}).join('')}`;
+  bindItems(sec,'food');if(curTab==='s-food')fitFor('food')}
+
+/* ---- shopping ---- */
+let shopFilter='all';
+function renderShop(){const t=T,sec=$('#s-shop');const all=D.shop;const L1=all.filter(s=>shopFilter==='all'||(shopFilter==='brand'?s.brand:!s.brand)).slice(0,60);layers.shop.clearLayers();
+  L1.forEach(s=>addMarker('shop',s.id,s.lat,s.lon,s.brand?COL.brand:COL.shop,'',`<b>${esc(s.name)}</b><br>${s.brand?'Marchio: '+esc(s.brand):'Boutique / multimarca'}`));
+  const nb=all.filter(s=>s.brand).length;
+  sec.innerHTML=`<h2>Shopping</h2><p class="lead">${all.length?`${all.length} negozi d'abbigliamento entro 3,5 km dal centro, ${nb} con marchi heritage o di fascia medio-alta. Catene low cost escluse.`:'Nessun negozio di abbigliamento mappato vicino al centro.'}</p>
+  <div class="filters"><button aria-pressed="${shopFilter==='all'}" data-f="all">Tutti</button><button aria-pressed="${shopFilter==='brand'}" data-f="brand">Marchi heritage / medio-alti</button><button aria-pressed="${shopFilter==='indie'}" data-f="indie">Boutique e multimarca</button></div>
+  <div class="links" style="margin:0 0 12px"><a href="${gmaps(0,0,'negozio abbigliamento multimarca uomo '+t.dest.name)}" target="_blank" rel="noopener">Multimarca su Google Maps</a><a href="${gmaps(0,0,'Barbour Filson Woolrich Ralph Lauren '+t.dest.name)}" target="_blank" rel="noopener">Heritage su Google Maps</a></div>
+  ${L1.map(s=>{const g=s.t,w=web(g);return `<article class="item" id="it-${s.id}" data-id="${s.id}"><div class="ihead"><span class="pin" style="background:${s.brand?COL.brand:COL.shop}">${s.brand?'★':'·'}</span><div><div class="iname">${esc(s.name)}</div><div class="itype">${esc([{clothes:'Abbigliamento',shoes:'Calzature',boutique:'Boutique',fashion:'Moda',fashion_accessories:'Accessori',leather:'Pelletteria'}[g.shop]||g.shop,g.clothes?g.clothes.replace(/;/g,', '):'',g['addr:street']].filter(Boolean).join(' · '))}</div></div><div class="dist">${km(s.d)}<small>dal centro</small></div></div>
+   <div class="tags">${s.brand?`<span class="tag brand">${esc(cap(s.brand))}</span>`:'<span class="tag">Indipendente</span>'}${g.opening_hours?`<span class="tag">${esc(g.opening_hours)}</span>`:''}</div>
+   <div class="links"><a href="${gmaps(0,0,s.name+' '+(g['addr:city']||t.dest.name))}" target="_blank" rel="noopener">Orari e foto</a>${w?`<a href="${esc(w)}" target="_blank" rel="noopener">Sito</a>`:''}</div></article>`}).join('')}
+  <div id="outletBox"></div>`;
+  sec.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{shopFilter=b.dataset.f;renderShop()});
+  bindItems(sec,'shop');renderOutlets();if(curTab==='s-shop')fitFor('shop')}
+function renderOutlets(){const box=$('#outletBox');if(!box||!D.outlet)return;if(!D.outlet.length){box.innerHTML='';return}
+  box.innerHTML=`<div class="card"><h3>Outlet entro 50 km</h3>${D.outlet.map(o=>`<div class="cost"><span>${esc(o.name)}</span><b>${km(o.d)}</b></div>`).join('')}<p class="note" style="margin-top:6px">Sono anche nella scheda Dintorni, sulla mappa.</p></div>`}
+
+/* ---- dintorni 50 km ---- */
+async function loadWide(){const t=T,{lat,lon}=t.dest;
+  const q=`[out:json][timeout:90];(
+nwr["leisure"="stadium"]["sport"~"soccer"](around:50000,${lat},${lon});
+nwr["tourism"~"^(museum|attraction|viewpoint|theme_park)$"]["wikidata"](around:50000,${lat},${lon});
+nwr["historic"~"^(castle|archaeological_site|monastery|fort)$"]["wikidata"](around:50000,${lat},${lon});
+nwr["shop"="mall"]["name"~"[Oo]utlet|[Vv]illage"](around:50000,${lat},${lon});
+);out center tags 400;`;
+  try{const j=await overpass(q);if(t!==T)return;const seen=new Set();D.sight=[];D.stadium=[];D.outlet=[];
+    (j.elements||[]).forEach(e=>{const p=ll(e),g=e.tags||{};if(!p||!g.name)return;const k=g.name.toLowerCase();if(seen.has(k))return;seen.add(k);
+      const o={id:e.type+e.id,lat:p[0],lon:p[1],t:g,name:g['name:it']||g.name,d:hav(lat,lon,p[0],p[1])};
+      if(g.leisure==='stadium'){if(g.capacity&&+g.capacity<1500)return;D.stadium.push(o)}else if(g.shop==='mall')D.outlet.push(o);else D.sight.push(o)});
+    D.sight.sort((a,b)=>a.d-b.d);D.stadium.sort((a,b)=>(+b.t.capacity||0)-(+a.t.capacity||0));D.outlet.sort((a,b)=>a.d-b.d);renderAround();renderOutlets()}
+  catch(e){if(t!==T)return;const s=$('#s-around');s.innerHTML=`<h2>Dintorni</h2><div class="warnbox">Il server dei dati OpenStreetMap non risponde adesso.</div><button class="btn" id="wRetry">Riprova</button>`;$('#wRetry').onclick=loadWide}}
+const sightTxt=g=>g.tourism==='museum'?'Museo':g.tourism==='viewpoint'?'Panorama':g.tourism==='theme_park'?'Parco':g.historic==='castle'?'Castello':g.historic==='archaeological_site'?'Sito archeologico':g.historic==='monastery'?'Abbazia / monastero':g.historic==='fort'?'Forte':'Da vedere';
+const wiki=g=>{const w=g.wikipedia||'';const m=w.match(/^([a-z]{2}):(.+)$/);return m?`https://${m[1]}.wikipedia.org/wiki/${enc(m[2].replace(/ /g,'_'))}`:''};
+let aroundFilter='all';
+function renderAround(){const t=T,sec=$('#s-around');layers.around.clearLayers();
+  const S=D.sight.filter(s=>aroundFilter==='all'||sightTxt(s.t)===aroundFilter).slice(0,45);
+  S.forEach(s=>addMarker('around',s.id,s.lat,s.lon,COL.sight,'',`<b>${esc(s.name)}</b><br>${sightTxt(s.t)} · ${km(s.d)}`));
+  D.stadium.forEach(s=>addMarker('around',s.id,s.lat,s.lon,COL.stadium,'⚽',`<b>${esc(s.name)}</b><br>Stadio${s.t.capacity?' · '+esc(s.t.capacity)+' posti':''}`));
+  D.outlet.forEach(s=>addMarker('around',s.id,s.lat,s.lon,COL.outlet,'€',`<b>${esc(s.name)}</b><br>Outlet · ${km(s.d)}`));
+  const types=[...new Set(D.sight.map(s=>sightTxt(s.t)))];const m1=fdate(T.d1,{month:'long',year:'numeric'});
+  sec.innerHTML=`<h2>Nel raggio di 50 km</h2><p class="lead">Calcio, shopping e cose da vedere attorno a ${esc(t.dest.name)}.</p>
+  <div class="card"><h3>Calcio</h3>${D.stadium.length?D.stadium.slice(0,8).map(s=>`<div class="cost" id="it-${s.id}"><span><b>${esc(s.name)}</b><br><small class="note">${km(s.d)} dal centro${s.t.capacity?' · '+esc(s.t.capacity)+' posti':''}${s.t.operator?' · '+esc(s.t.operator):''}</small></span><span class="links" style="margin:0;flex:none"><a href="https://www.google.com/search?q=${enc(s.name+' partite '+m1)}" target="_blank" rel="noopener">Partite</a></span></div>`).join(''):'<p class="note">Nessuno stadio di calcio mappato entro 50 km.</p>'}
+   <p class="note" style="margin-top:8px">Le partite di quei giorni non sono negli open data: il link cerca il calendario di ${esc(m1)} per quello stadio.</p></div>
+  ${D.outlet.length?`<div class="card"><h3>Outlet</h3>${D.outlet.map(s=>`<div class="cost"><span>${esc(s.name)}</span><span class="links" style="margin:0;flex:none"><b style="align-self:center;margin-right:6px">${km(s.d)}</b><a href="${gmaps(0,0,s.name)}" target="_blank" rel="noopener">Orari</a></span></div>`).join('')}</div>`:''}
+  <h3 style="font-size:22px;margin:16px 0 8px">Da vedere</h3>
+  <div class="filters"><button aria-pressed="${aroundFilter==='all'}" data-a="all">Tutto</button>${types.map(x=>`<button aria-pressed="${aroundFilter===x}" data-a="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+  ${S.length?S.map(s=>{const w=wiki(s.t);return `<article class="item" id="it-${s.id}" data-id="${s.id}"><div class="ihead"><span class="pin" style="background:${COL.sight}">${esc(sightTxt(s.t)[0])}</span><div><div class="iname">${esc(s.name)}</div><div class="itype">${esc(sightTxt(s.t))}${s.t['addr:city']?' · '+esc(s.t['addr:city']):''}</div></div><div class="dist">${km(s.d)}<small>dal centro</small></div></div>
+    <div class="links">${w?`<a href="${w}" target="_blank" rel="noopener">Wikipedia</a>`:''}<a href="${gmaps(0,0,s.name)}" target="_blank" rel="noopener">Orari e foto</a><a href="https://www.google.com/maps/dir/?api=1&origin=${t.dest.lat},${t.dest.lon}&destination=${s.lat},${s.lon}&travelmode=driving" target="_blank" rel="noopener">Come arrivarci</a><a href="${p4n(s.lat,s.lon).replace('z=15','z=13')}" target="_blank" rel="noopener">Soste vicine</a></div></article>`}).join(''):'<p class="note">Nessun luogo notevole mappato in zona.</p>'}`;
+  sec.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{aroundFilter=b.dataset.a;renderAround()});
+  bindItems(sec,'around');if(curTab==='s-around')fitFor('around')}
+
+/* ================= meteo ================= */
+const WX=c=>c===0?['Sereno','sun']:c<=2?['Poco nuvoloso','psun']:c===3?['Coperto','cloud']:c<=48?['Nebbia','fog']:c<=57?['Pioviggine','rain']:c<=67?['Pioggia','rain']:c<=77?['Neve','snow']:c<=82?['Rovesci','rain']:c<=86?['Neve','snow']:['Temporale','storm'];
+const ICO={sun:`<circle cx="20" cy="20" r="8" fill="#e0a83a"/><g stroke="#e0a83a" stroke-width="2.5" stroke-linecap="round">${[0,45,90,135,180,225,270,315].map(a=>`<line x1="${20+12*Math.cos(a*Math.PI/180)}" y1="${20+12*Math.sin(a*Math.PI/180)}" x2="${20+16*Math.cos(a*Math.PI/180)}" y2="${20+16*Math.sin(a*Math.PI/180)}"/>`).join('')}</g>`,
+ psun:`<circle cx="15" cy="15" r="7" fill="#e0a83a"/><path d="M12 30a7 7 0 0 1 1-13.9A9 9 0 0 1 30 18a6 6 0 0 1 0 12Z" fill="#c9d6ea" stroke="#3a6fb0" stroke-width="1.5"/>`,
+ cloud:`<path d="M10 30a8 8 0 0 1 1.2-15.9A10 10 0 0 1 30 16a7 7 0 0 1 0 14Z" fill="#c9d6ea" stroke="#3a6fb0" stroke-width="1.5"/>`,
+ fog:`<g stroke="#8fa0b8" stroke-width="3" stroke-linecap="round"><line x1="7" y1="14" x2="33" y2="14"/><line x1="5" y1="21" x2="31" y2="21"/><line x1="9" y1="28" x2="35" y2="28"/></g>`,
+ rain:`<path d="M10 24a8 8 0 0 1 1.2-15.9A10 10 0 0 1 30 10a7 7 0 0 1 0 14Z" fill="#c9d6ea" stroke="#3a6fb0" stroke-width="1.5"/><g stroke="#3a6fb0" stroke-width="2.5" stroke-linecap="round"><line x1="13" y1="28" x2="11" y2="34"/><line x1="20" y1="28" x2="18" y2="34"/><line x1="27" y1="28" x2="25" y2="34"/></g>`,
+ snow:`<path d="M10 24a8 8 0 0 1 1.2-15.9A10 10 0 0 1 30 10a7 7 0 0 1 0 14Z" fill="#e6edf6" stroke="#3a6fb0" stroke-width="1.5"/><g fill="#3a6fb0"><circle cx="13" cy="31" r="2"/><circle cx="20" cy="33" r="2"/><circle cx="27" cy="31" r="2"/></g>`,
+ storm:`<path d="M10 24a8 8 0 0 1 1.2-15.9A10 10 0 0 1 30 10a7 7 0 0 1 0 14Z" fill="#9fb0c8" stroke="#14264a" stroke-width="1.5"/><path d="M21 24l-5 8h5l-2 6 7-9h-5l2-5Z" fill="#e0a83a"/>`};
+const ico=k=>`<svg viewBox="0 0 40 40" aria-hidden="true">${ICO[k]}</svg>`;
+function wxPoints(t){const {lat,lon}=t.dest,dk=40,dl=dk/111,dn=dk/(111*Math.cos(rad(lat)));
+  return[{n:t.dest.name,lat,lon},{n:'40 km Nord',lat:lat+dl,lon},{n:'40 km Est',lat,lon:lon+dn},{n:'40 km Sud',lat:lat-dl,lon},{n:'40 km Ovest',lat,lon:lon-dn}]}
+async function loadWx(){const t=T,P=wxPoints(t);const lim=new Date();lim.setDate(lim.getDate()+15);const limS=iso(lim);
+  const daily='weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max';
+  let mode='fc',s=t.d1,e=t.d2;
+  if(t.d1>limS){mode='hist';const y1=pd(t.d1),y2=pd(t.d2);y1.setFullYear(y1.getFullYear()-1);y2.setFullYear(y2.getFullYear()-1);s=iso(y1);e=iso(y2)}
+  else if(t.d2<today){mode='past'}
+  else{if(s<today)s=today;if(e>limS)e=limS}
+  const base=mode==='fc'?'https://api.open-meteo.com/v1/forecast':'https://archive-api.open-meteo.com/v1/archive';
+  const url=`${base}?latitude=${P.map(p=>p.lat.toFixed(4)).join(',')}&longitude=${P.map(p=>p.lon.toFixed(4)).join(',')}&daily=${mode==='fc'?daily:daily.replace(',precipitation_probability_max','')}&timezone=auto&start_date=${s}&end_date=${e}`;
+  try{let j=await getJSON(url);if(t!==T)return;if(!Array.isArray(j))j=[j];D.wx={mode,P,data:j,s,e,partial:mode==='fc'&&t.d2>limS};
+    layers.wx.clearLayers();P.forEach((p,i)=>{const dd=j[i]?.daily;const k=dd?WX(dd.weather_code[0])[0]:'';L.marker([p.lat,p.lon],{icon:pinIcon('#3a6fb0',i?'':'●')}).bindPopup(`<b>${esc(p.n)}</b><br>${dd?Math.round(dd.temperature_2m_min[0])+'°/'+Math.round(dd.temperature_2m_max[0])+'° · '+k:''}`).addTo(layers.wx)});
+    L.circle([t.dest.lat,t.dest.lon],{radius:50000,color:'#3a6fb0',weight:1.5,dashArray:'4 6',fill:true,fillOpacity:.05}).addTo(layers.wx);
+    renderWx();renderWxMini()}
+  catch(err){if(t!==T)return;$('#s-wx').innerHTML=`<h2>Meteo</h2><div class="warnbox">Il servizio meteo non risponde adesso.</div><button class="btn" id="xRetry">Riprova</button>`;$('#xRetry').onclick=loadWx}}
+function dayCards(dd,mode){return `<div class="wx">${dd.time.map((d,i)=>{const [txt,k]=WX(dd.weather_code[i]);const pr=dd.precipitation_probability_max?dd.precipitation_probability_max[i]:null;
+  return `<div class="wd"><div class="day">${esc(cap(fdate(d,{weekday:'short',day:'numeric'})))}</div>${ico(k)}<div class="t">${Math.round(dd.temperature_2m_max[i])}° <span>${Math.round(dd.temperature_2m_min[i])}°</span></div><div class="r">${pr!=null?pr+'% · ':''}${(dd.precipitation_sum[i]||0).toFixed(1)} mm</div><div class="note" style="font-size:11px">${esc(txt)}</div></div>`}).join('')}</div>`}
+function wxHead(w){return w.mode==='hist'?`Mancano più di 16 giorni: ti mostro com'era il tempo negli stessi giorni dell'anno scorso (${fdate(w.s,{day:'numeric',month:'short',year:'numeric'})} → ${fdate(w.e,{day:'numeric',month:'short'})}). La previsione vera compare da ${fdate(iso(new Date(pd(T.d1).getTime()-15*864e5)),{day:'numeric',month:'long'})}.`:w.mode==='past'?'Viaggio già fatto: questo è il tempo che c\'è stato.':`Previsione Open-Meteo${w.partial?', disponibile fino a 16 giorni da oggi':''}.`}
+function renderWx(){const w=D.wx,sec=$('#s-wx');if(!w)return;const c=w.data[0].daily;
+  const rows=w.P.map((p,i)=>{const dd=w.data[i]?.daily;if(!dd)return'';return `<tr><td><b>${esc(p.n)}</b></td>${dd.time.map((d,k)=>{const [txt,ic]=WX(dd.weather_code[k]);return `<td title="${esc(txt)}"><span style="display:inline-block;width:24px;height:24px;vertical-align:middle">${ico(ic)}</span><br>${Math.round(dd.temperature_2m_min[k])}°/${Math.round(dd.temperature_2m_max[k])}°</td>`}).join('')}</tr>`}).join('');
+  const rainy=w.data.reduce((n,x)=>n+(x.daily?x.daily.precipitation_sum.filter(v=>v>2).length:0),0);
+  sec.innerHTML=`<h2>Meteo</h2><p class="lead">${esc(wxHead(w))}</p>
+  <div class="card"><h3>${esc(T.dest.name)}</h3>${dayCards(c,w.mode)}<p class="note" style="margin-top:6px">Vento max: ${Math.round(Math.max(...c.wind_speed_10m_max))} km/h.</p></div>
+  <div class="card"><h3>Nel raggio di 50 km</h3><p class="note" style="margin-bottom:8px">Quattro punti a 40 km nelle quattro direzioni, utili per scegliere la gita del giorno.${rainy?' Giornate di pioggia sopra i 2 mm, sommate tra i punti: '+rainy+'.':''}</p>
+  <div class="wscroll"><table class="wtable"><thead><tr><th>Punto</th>${c.time.map(d=>`<th>${esc(cap(fdate(d,{weekday:'short',day:'numeric'})))}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  if(curTab==='s-wx')fitFor('wx')}
+function renderWxMini(){const box=$('#wxMini'),w=D.wx;if(!box||!w)return;box.innerHTML=`<div class="card"><h3>Meteo a ${esc(T.dest.name)}</h3><p class="note" style="margin-bottom:8px">${esc(wxHead(w))}</p>${dayCards(w.data[0].daily,w.mode)}</div>`}
+
+/* ================= boot ================= */
+fillForm();renderTabs();renderTrips();legend([[COL.start,'Rimessaggio Serino']]);
+L.marker([set.start.lat,set.start.lon],{icon:pinIcon(COL.start,'',true)}).bindPopup(`<b>${esc(set.start.name)}</b>`).addTo(baseLayer);
+const up=trips.find(t=>t.d2>=today);if(up)setTimeout(()=>openTrip(up,false),50);
+}
+</script>
+</body>
+</html>
