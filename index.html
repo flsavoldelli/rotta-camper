@@ -132,6 +132,7 @@ label{display:block;font-size:13px;font-weight:700;color:var(--mute);margin-bott
 .trips li button.o b{display:block}
 .trips small{color:var(--mute)}
 .hide{display:none!important}
+.tiles-soft{filter:saturate(.75) sepia(.12) contrast(.96)}
 .leaflet-popup-content{font:14px/1.4 "Instrument Sans",sans-serif}
 .leaflet-popup-content b{font-size:15px}
 </style>
@@ -179,7 +180,7 @@ label{display:block;font-size:13px;font-weight:700;color:var(--mute);margin-bott
     <section class="sec hide" id="s-shop" data-tab="Shopping"></section>
     <section class="sec hide" id="s-around" data-tab="Dintorni"></section>
     <section class="sec hide" id="s-wx" data-tab="Meteo"></section>
-    <p class="note" style="padding:0 16px">Dati © OpenStreetMap contributors (ODbL) · Mappa © CARTO · Percorso OSRM · Meteo Open-Meteo. park4night si apre con link diretto sulla zona.</p>
+    <p class="note" style="padding:0 16px">Dati e mappa © OpenStreetMap contributors (ODbL) · Satellite © Esri · Percorso OSRM · Meteo Open-Meteo. park4night si apre con link diretto sulla zona.</p>
   </div>
 </div>
 
@@ -213,7 +214,9 @@ let destPick=null,startPick=set.start;
 
 /* ================= map ================= */
 const map=L.map('map',{zoomControl:true,attributionControl:true}).setView([44.43,8.99],7);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+const tStreet=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,className:'tiles-soft',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+const tSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Immagini © Esri, Maxar, Earthstar Geographics'});
+L.control.layers({'Mappa':tStreet,'Satellite':tSat},null,{position:'topright'}).addTo(map);
 const COL={start:'#14264a',dest:'#c0673d',area:'#1e3766',camp:'#3a6fb0',park:'#5b8fc9',dump:'#7a8aa3',food:'#c0673d',shop:'#14264a',brand:'#d6a645',station:'#3d7a55',taxi:'#b88a1e',sight:'#3a6fb0',stadium:'#1e3766',outlet:'#d6a645',bus:'#3d7a55'};
 const pinIcon=(c,txt,big)=>L.divIcon({className:'',iconSize:big?[34,44]:[26,34],iconAnchor:big?[17,42]:[13,32],popupAnchor:[0,-30],
   html:`<svg viewBox="0 0 26 34" width="${big?34:26}" height="${big?44:34}"><path d="M13 33C13 33 2 20 2 12.5A11 11 0 0 1 24 12.5C24 20 13 33 13 33Z" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12.5" r="${txt?7:4}" fill="#fff" opacity="${txt?1:.9}"/>${txt?`<text x="13" y="16" text-anchor="middle" font-size="9" font-weight="700" font-family="Instrument Sans,sans-serif" fill="${c}">${esc(txt)}</text>`:''}</svg>`});
