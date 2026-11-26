@@ -351,7 +351,7 @@ function renderRoute(){const r=D.route,c=costs(),t=T,n=nights(t);
   renderWxMini()}
 
 /* ================= Overpass ================= */
-const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const OVP=['https://overpass-api.de/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
 async function overpass(q,ms=70000){let last;for(const u of OVP){try{return await getJSON(u,{method:'POST',body:'data='+enc(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}},ms)}catch(e){last=e}}throw last}
 const ll=e=>e.lat!=null?[e.lat,e.lon]:e.center?[e.center.lat,e.center.lon]:null;
 
@@ -555,14 +555,21 @@ function renderWxMini(){const box=$('#wxMini'),w=D.wx;if(!box||!w)return;box.inn
 /* ================= esplora una zona ================= */
 const REG_IT=[['IT-42','Liguria'],['IT-21','Piemonte'],['IT-23',"Valle d'Aosta"],['IT-25','Lombardia'],['IT-32','Trentino-Alto Adige'],['IT-34','Veneto'],['IT-36','Friuli-Venezia Giulia'],['IT-45','Emilia-Romagna'],['IT-52','Toscana'],['IT-55','Umbria'],['IT-57','Marche'],['IT-62','Lazio'],['IT-65','Abruzzo'],['IT-67','Molise'],['IT-72','Campania'],['IT-75','Puglia'],['IT-77','Basilicata'],['IT-78','Calabria'],['IT-82','Sicilia'],['IT-88','Sardegna']];
 const REG_EU=[['FR-PAC',"Provenza-Costa Azzurra"],['FR-ARA','Alvernia-Rodano-Alpi'],['FR-OCC','Occitania'],['CH','Svizzera'],['AT','Austria'],['SI','Slovenia']];
+const BB={'IT-42':[43.75,7.49,44.68,10.08],'IT-21':[44.05,6.62,46.47,9.22],'IT-23':[45.46,6.80,45.99,7.95],'IT-25':[44.67,8.49,46.64,11.43],'IT-32':[45.67,10.38,47.10,12.48],'IT-34':[44.79,10.62,46.68,13.10],'IT-36':[45.58,12.32,46.65,13.92],'IT-45':[43.73,9.19,45.14,12.76],'IT-52':[42.24,9.68,44.47,12.37],'IT-55':[42.36,11.89,43.62,13.27],'IT-57':[42.69,12.19,43.97,13.92],'IT-62':[40.78,11.45,42.84,14.03],'IT-65':[41.68,13.02,42.90,14.79],'IT-67':[41.36,13.94,42.07,15.17],'IT-72':[39.99,13.76,41.51,15.81],'IT-75':[39.79,14.93,42.23,18.52],'IT-77':[39.90,15.33,41.14,16.87],'IT-78':[37.91,15.63,40.15,17.21],'IT-82':[36.64,12.42,38.81,15.65],'IT-88':[38.86,8.13,41.31,9.83],'FR-PAC':[42.98,4.23,45.13,7.72],'FR-ARA':[44.11,2.06,46.81,7.19],'FR-OCC':[42.33,-0.33,45.05,4.85],'CH':[45.82,5.96,47.81,10.49],'AT':[46.37,9.53,49.02,17.16],'SI':[45.42,13.38,46.88,16.61]};
 const regName=c=>([...REG_IT,...REG_EU].find(r=>r[0]===c)||[,c])[1];
-const LAND=[['mare','Mare'],['lago','Lago'],['montagna','Montagna'],['collina','Collina'],['citta','Città']];
+const LAND=[['mare','Mare'],['lago','Lago'],['montagna','Montagna'],['collina','Collina'],['citta','Città e cittadine']];
 const KIND=[['area','Aree sosta'],['camp','Campeggi'],['park','Parcheggi camper'],['dump','Camper service']];
 const SVC=[['power','Corrente'],['water','Acqua'],['dump','Scarico'],['dog','Cani ammessi'],['free','Gratuito'],['sup','Custodito']];
 let EXs=Object.assign({reg:'IT-52',land:[],kind:['area','camp','park'],svc:[],sort:'near'},LS.get('rc_explore',{}));
 const EXC={};let exPage=30,exBusy=false;
-const areaSel=c=>c.length===2?`area["ISO3166-1"="${c}"]["admin_level"="2"]`:`area["ISO3166-2"="${c}"]["boundary"="administrative"]`;
-const SPOTQ='nwr["tourism"~"^(caravan_site|camp_site)$"](area.r);nwr["amenity"="parking"]["motorhome"~"yes|designated"](area.r);nwr["amenity"="sanitary_dump_station"](area.r);';
+const SPOTQ='nwr["tourism"~"^(caravan_site|camp_site)$"];nwr["amenity"="parking"]["motorhome"~"yes|designated"];nwr["amenity"="sanitary_dump_station"];';
+const NEAR={mare:'way["natural"="coastline"]->.n;nwr.all(around.n:2500)->.m;',lago:'nwr["natural"="water"]["water"~"^(lake|reservoir)$"]["wikidata"]->.n;nwr.all(around.n:2500)->.m;',citta:'node["place"="city"]->.n1;nwr.all(around.n1:8000)->.m1;node["place"="town"]->.n2;nwr.all(around.n2:4000)->.m2;(.m1;.m2;)->.m;'};
+function exQuery(code,withSpots,flags){return `[out:json][timeout:150][bbox:${BB[code].join(',')}];(${SPOTQ})->.all;${withSpots?'.all out center tags;':''}${flags.map(l=>`${NEAR[l]}make sep k="${l}";out;.m out ids;`).join('')}`}
+function parseEx(j,C){let cur=null;(j.elements||[]).forEach(e=>{if(e.type==='sep'){cur=e.tags&&e.tags.k;if(cur&&!C.flags[cur])C.flags[cur]=new Set();return}if(cur){C.flags[cur].add('x'+e.type+e.id);return}
+  const p=ll(e),g=e.tags||{};if(!p)return;const id='x'+e.type+e.id;if(C.seen.has(id))return;C.seen.add(id);
+  const kind=g.tourism==='caravan_site'?'area':g.tourism==='camp_site'?'camp':g.amenity==='parking'?'park':g.amenity==='sanitary_dump_station'?'dump':'';if(!kind)return;
+  if(kind==='camp'&&(g.caravans==='no'||g.motorhome==='no'||g.tents_only==='yes'))return;
+  C.spots.push({id,lat:p[0],lon:p[1],t:g,name:g.name||'',kind,dS:hav(set.start.lat,set.start.lon,p[0],p[1])})})}
 function exChips(){const c=(el,list,sel)=>{$(el).innerHTML=list.map(([v,l])=>`<button type="button" aria-pressed="${sel.includes(v)}" data-v="${v}">${l}</button>`).join('')};
   c('#xLand',LAND,EXs.land);c('#xKind',KIND,EXs.kind);c('#xSvc',SVC,EXs.svc)}
 function initExplore(){$('#xReg').innerHTML=`<optgroup label="Italia">${REG_IT.map(r=>`<option value="${r[0]}">${esc(r[1])}</option>`).join('')}</optgroup><optgroup label="Oltre confine">${REG_EU.map(r=>`<option value="${r[0]}">${esc(r[1])}</option>`).join('')}</optgroup>`;
@@ -575,28 +582,21 @@ $('#exForm').addEventListener('submit',e=>{e.preventDefault();runExplore()});
 $('#toExplore').onclick=()=>show('s-explore');
 function exStatus(m){$('#exRes').innerHTML=`<div class="loading"><span class="spin"></span>${esc(m)}</div>`}
 async function runExplore(){if(exBusy)return;exBusy=true;$('#xGo').disabled=true;const code=EXs.reg;
-  try{if(!EXC[code]){exStatus(`Scarico tutte le soste in ${regName(code)}… può volerci mezzo minuto.`);
-      const j=await overpass(`[out:json][timeout:180];${areaSel(code)}->.r;(${SPOTQ});out center tags;`,190000);
-      const spots=[],seen=new Set();(j.elements||[]).forEach(e=>{const p=ll(e),g=e.tags||{};if(!p)return;const id='x'+e.type+e.id;if(seen.has(id))return;seen.add(id);
-        let kind=g.tourism==='caravan_site'?'area':g.tourism==='camp_site'?'camp':g.amenity==='parking'?'park':g.amenity==='sanitary_dump_station'?'dump':'';if(!kind)return;
-        if(kind==='camp'&&(g.caravans==='no'||g.motorhome==='no'||g.tents_only==='yes'))return;
-        spots.push({id,lat:p[0],lon:p[1],t:g,name:g.name||'',kind,dS:hav(set.start.lat,set.start.lon,p[0],p[1])})});
-      const dumps=spots.filter(s=>s.kind==='dump');spots.forEach(s=>{if(s.kind!=='dump')s.dump=dumps.some(d=>Math.abs(d.lat-s.lat)<.002&&Math.abs(d.lon-s.lon)<.003)});
-      if(!spots.length)throw{empty:true};EXC[code]={spots,flags:{},elev:null}}
-    await ensureFlags(code);exPage=30;applyExplore()}
-  catch(e){$('#exRes').innerHTML=e&&e.empty?`<div class="warnbox">In ${esc(regName(code))} non trovo soste mappate: strano, riprova tra poco.</div>`:`<div class="warnbox">Il server di OpenStreetMap non ha risposto in tempo (le regioni grandi pesano). Riprova tra un minuto.</div><button class="btn" id="xRetry">Riprova</button>`;
+  try{const flags=EXs.land.filter(l=>NEAR[l]);let C=EXC[code];
+    if(!C){C={spots:[],flags:{},elev:null,seen:new Set()};
+      exStatus(`Scarico le soste di ${regName(code)} e dintorni${flags.length?' e controllo il paesaggio':''}… di solito 10–30 secondi.`);
+      const j=await overpass(exQuery(code,true,flags),120000);parseEx(j,C);
+      if(!C.spots.length)throw{empty:true};
+      const dumps=C.spots.filter(s=>s.kind==='dump');C.spots.forEach(s=>{if(s.kind!=='dump')s.dump=dumps.some(d=>Math.abs(d.lat-s.lat)<.002&&Math.abs(d.lon-s.lon)<.003)});
+      flags.forEach(l=>{if(!C.flags[l])C.flags[l]=new Set()});EXC[code]=C}
+    else{const miss=flags.filter(l=>!C.flags[l]);if(miss.length){exStatus('Controllo il paesaggio attorno alle soste…');const j=await overpass(exQuery(code,false,miss),120000);parseEx(j,C);miss.forEach(l=>{if(!C.flags[l])C.flags[l]=new Set()})}}
+    if(EXs.land.some(l=>l==='montagna'||l==='collina')&&!C.elev){exStatus("Calcolo l'altitudine di ogni sosta…");const E={},S=C.spots;
+      for(let i=0;i<S.length;i+=100){const b=S.slice(i,i+100);try{const j=await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${b.map(s=>s.lat.toFixed(4)).join(',')}&longitude=${b.map(s=>s.lon.toFixed(4)).join(',')}`,{},20000);(j.elevation||[]).forEach((v,k)=>{if(v!=null)E[b[k].id]=v})}catch(e){}}
+      C.elev=E}
+    exPage=30;applyExplore()}
+  catch(e){$('#exRes').innerHTML=e&&e.empty?`<div class="warnbox">In ${esc(regName(code))} non trovo soste mappate: riprova tra poco.</div>`:`<div class="warnbox">I server di OpenStreetMap in questo momento sono lenti o non rispondono. Riprova tra un minuto: i dati già scaricati restano in memoria.</div><button class="btn" id="xRetry">Riprova</button>`;
     const r=$('#xRetry');if(r)r.onclick=runExplore}
   exBusy=false;$('#xGo').disabled=false}
-async function ensureFlags(code){const C=EXC[code];
-  for(const l of EXs.land){
-    if(['mare','lago','citta'].includes(l)&&!C.flags[l]){exStatus({mare:'Cerco le soste vicino al mare…',lago:'Cerco le soste vicino ai laghi…',citta:'Cerco le soste vicino alle città…'}[l]);
-      const near={mare:'way["natural"="coastline"](area.r)->.n;',lago:'nwr["natural"="water"]["water"~"^(lake|reservoir)$"]["wikidata"](area.r)->.n;',citta:'node["place"="city"](area.r)->.n;'}[l];
-      const rd={mare:2500,lago:2500,citta:8000}[l];
-      const j=await overpass(`[out:json][timeout:180];${areaSel(code)}->.r;(${SPOTQ})->.all;${near}nwr.all(around.n:${rd});out ids;`,190000);
-      C.flags[l]=new Set((j.elements||[]).map(e=>'x'+e.type+e.id))}
-    if((l==='montagna'||l==='collina')&&!C.elev){exStatus('Calcolo l\'altitudine di ogni sosta…');const E={},S=C.spots;
-      for(let i=0;i<S.length;i+=100){const b=S.slice(i,i+100);try{const j=await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${b.map(s=>s.lat.toFixed(4)).join(',')}&longitude=${b.map(s=>s.lon.toFixed(4)).join(',')}`,{},20000);(j.elevation||[]).forEach((v,k)=>{if(v!=null)E[b[k].id]=v})}catch(e){}}
-      C.elev=E}}}
 const elevOf=(C,s)=>C.elev?C.elev[s.id]:undefined;
 function passLand(C,s){if(!EXs.land.length)return true;const el=elevOf(C,s);return EXs.land.some(l=>l==='montagna'?el>=600:l==='collina'?(el>=150&&el<600):!!(C.flags[l]&&C.flags[l].has(s.id)))}
 function landTags(C,s){const o=[];if(C.flags.mare&&C.flags.mare.has(s.id))o.push('Mare');if(C.flags.lago&&C.flags.lago.has(s.id))o.push('Lago');if(C.flags.citta&&C.flags.citta.has(s.id))o.push('Vicino a una città');
@@ -612,7 +612,7 @@ function applyExplore(){const code=EXs.reg,C=EXC[code];if(!C)return;
     m.on('click',()=>hl(s.id));markers[s.id]=m;layers.explore.addLayer(m)});
   const by=k=>L1.filter(s=>s.kind===k).length,landTxt=EXs.land.length?EXs.land.map(l=>LAND.find(x=>x[0]===l)[1].toLowerCase()).join(' o '):'';
   const noElev=EXs.land.some(l=>l==='montagna'||l==='collina')&&C.elev&&!Object.keys(C.elev).length;
-  $('#exRes').innerHTML=`<div class="card"><h3>${L1.length} soste in ${esc(regName(code))}${landTxt?' · '+esc(landTxt):''}</h3>
+  $('#exRes').innerHTML=`<div class="card"><h3>${L1.length} soste in ${esc(regName(code))} e dintorni${landTxt?' · '+esc(landTxt):''}</h3>
    <div class="tags">${KIND.filter(k=>EXs.kind.includes(k[0])).map(k=>`<span class="tag" style="border-color:${COL[k[0]]}">${k[1]}: ${by(k[0])}</span>`).join('')}</div>
    <p class="note" style="margin-top:8px">Distanze da Serino in linea d'aria, maggiorate del 25% per stimare la strada. Tocca "Usa come meta" per avere percorso, costi, trattorie, negozi e meteo di quella zona.</p>
    ${noElev?'<p class="note" style="color:var(--bad)">Il servizio delle altitudini non ha risposto: il filtro montagna/collina non è applicabile adesso.</p>':''}</div>
