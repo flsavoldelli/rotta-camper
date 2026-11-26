@@ -170,9 +170,22 @@ label{display:block;font-size:13px;font-weight:700;color:var(--mute);margin-bott
         <div class="actions"><button class="btn" type="submit" id="goBtn">Traccia il viaggio</button></div>
         <p class="note" id="planMsg" style="margin-top:8px"></p>
       </form>
+      <div class="card"><h3>Non hai ancora una meta?</h3><p class="note" style="margin:4px 0 10px">Scegli una regione e il paesaggio che vuoi (mare, lago, montagna, collina, città): ti mostro tutte le soste per la notte e poi ne trasformi una nel viaggio.</p><button class="btn-blue" type="button" id="toExplore">Esplora una zona</button></div>
       <div class="card"><h3>I miei viaggi</h3><div id="tripList"><p class="note">Ancora nessun viaggio salvato.</p></div></div>
     </section>
 
+    <section class="sec hide" id="s-explore" data-tab="Esplora">
+      <h2>Esplora una zona</h2><p class="lead">Regione e paesaggio: ti mostro dove si dorme in camper, poi scegli la sosta e la trasformi nella meta.</p>
+      <form class="card" id="exForm" autocomplete="off">
+        <div class="field"><label for="xReg">Regione</label><select id="xReg"></select></div>
+        <label>Paesaggio</label><div class="filters" id="xLand"></div>
+        <p class="note" style="margin:-4px 0 12px">Puoi sceglierne più di uno. Nessuno = tutta la regione.</p>
+        <label>Tipo di sosta</label><div class="filters" id="xKind"></div>
+        <details style="margin:4px 0 12px"><summary style="cursor:pointer;font-weight:700;min-height:36px">Servizi indispensabili</summary><div class="filters" id="xSvc" style="margin-top:8px"></div><p class="note">Filtrano solo le soste dove quel servizio è segnalato sulla mappa: meglio usarli con parsimonia.</p></details>
+        <div class="row2"><div class="field"><label for="xSort">Ordina per</label><select id="xSort"><option value="near">Vicine a Serino</option><option value="score">Più strutturate</option></select></div><div class="field" style="align-self:end"><button class="btn" type="submit" id="xGo" style="width:100%">Esplora</button></div></div>
+      </form>
+      <div id="exRes"></div>
+    </section>
     <section class="sec hide" id="s-route" data-tab="Viaggio"></section>
     <section class="sec hide" id="s-stay" data-tab="Soste"></section>
     <section class="sec hide" id="s-move" data-tab="Muoversi"></section>
@@ -220,7 +233,7 @@ L.control.layers({'Mappa':tStreet,'Satellite':tSat},null,{position:'topright'}).
 const COL={start:'#14264a',dest:'#c0673d',area:'#1e3766',camp:'#3a6fb0',park:'#5b8fc9',dump:'#7a8aa3',food:'#c0673d',shop:'#14264a',brand:'#d6a645',station:'#3d7a55',taxi:'#b88a1e',sight:'#3a6fb0',stadium:'#1e3766',outlet:'#d6a645',bus:'#3d7a55'};
 const pinIcon=(c,txt,big)=>L.divIcon({className:'',iconSize:big?[34,44]:[26,34],iconAnchor:big?[17,42]:[13,32],popupAnchor:[0,-30],
   html:`<svg viewBox="0 0 26 34" width="${big?34:26}" height="${big?44:34}"><path d="M13 33C13 33 2 20 2 12.5A11 11 0 0 1 24 12.5C24 20 13 33 13 33Z" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12.5" r="${txt?7:4}" fill="#fff" opacity="${txt?1:.9}"/>${txt?`<text x="13" y="16" text-anchor="middle" font-size="9" font-weight="700" font-family="Instrument Sans,sans-serif" fill="${c}">${esc(txt)}</text>`:''}</svg>`});
-const layers={};['route','stay','move','food','shop','around','wx'].forEach(k=>layers[k]=L.layerGroup());
+const layers={};['route','stay','move','food','shop','around','wx','explore'].forEach(k=>layers[k]=L.layerGroup());
 let baseLayer=L.layerGroup().addTo(map);
 const markers={};
 function addMarker(group,id,lat,lon,color,txt,popup){const m=L.marker([lat,lon],{icon:pinIcon(color,txt)}).bindPopup(popup);m.on('click',()=>hl(id));layers[group].addLayer(m);markers[id]=m;return m}
@@ -229,16 +242,16 @@ function legend(items){$('#legend').innerHTML=items.map(([c,l])=>`<span><i style
 
 /* ================= tabs ================= */
 const secs=[...document.querySelectorAll('.sec')];let curTab='s-plan';
-function renderTabs(){$('#tabs').innerHTML=secs.filter(s=>s.id==='s-plan'||T).map(s=>`<button role="tab" aria-selected="${s.id===curTab}" data-t="${s.id}">${s.dataset.tab}</button>`).join('')}
+function renderTabs(){$('#tabs').innerHTML=secs.filter(s=>s.id==='s-plan'||s.id==='s-explore'||T).map(s=>`<button role="tab" aria-selected="${s.id===curTab}" data-t="${s.id}">${s.dataset.tab}</button>`).join('')}
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(b)show(b.dataset.t)});
 function show(id){curTab=id;secs.forEach(s=>s.classList.toggle('hide',s.id!==id));renderTabs();
-  const g={'s-route':'route','s-stay':'stay','s-move':'move','s-food':'food','s-shop':'shop','s-around':'around','s-wx':'wx'}[id];
+  const g={'s-explore':'explore','s-route':'route','s-stay':'stay','s-move':'move','s-food':'food','s-shop':'shop','s-around':'around','s-wx':'wx'}[id];
   Object.values(layers).forEach(l=>map.removeLayer(l));if(g)layers[g].addTo(map);
   setTimeout(()=>{map.invalidateSize();fitFor(g)},60);
-  const lg={route:[[COL.start,'Rimessaggio'],[COL.dest,'Meta'],['#3a6fb0','Percorso']],stay:[[COL.area,'Area sosta'],[COL.camp,'Campeggio'],[COL.park,'Parcheggio camper'],[COL.dump,'Camper service']],move:[[COL.station,'Stazione'],[COL.taxi,'Taxi'],[COL.dest,'Centro']],food:[[COL.food,'Trattoria / osteria']],shop:[[COL.brand,'Marchio heritage'],[COL.shop,'Boutique / multimarca']],around:[[COL.sight,'Da vedere'],[COL.stadium,'Stadio'],[COL.outlet,'Outlet']],wx:[['#3a6fb0','Punti meteo']]}[g]||[];
+  const lg={route:[[COL.start,'Rimessaggio'],[COL.dest,'Meta'],['#3a6fb0','Percorso']],stay:[[COL.area,'Area sosta'],[COL.camp,'Campeggio'],[COL.park,'Parcheggio camper'],[COL.dump,'Camper service']],move:[[COL.station,'Stazione'],[COL.taxi,'Taxi'],[COL.dest,'Centro']],food:[[COL.food,'Trattoria / osteria']],shop:[[COL.brand,'Marchio heritage'],[COL.shop,'Boutique / multimarca']],around:[[COL.sight,'Da vedere'],[COL.stadium,'Stadio'],[COL.outlet,'Outlet']],wx:[['#3a6fb0','Punti meteo']],explore:[[COL.area,'Area sosta'],[COL.camp,'Campeggio'],[COL.park,'Parcheggio camper'],[COL.dump,'Camper service']]}[g]||[];
   legend(lg);const tb=document.querySelector(`[data-t="${id}"]`);tb&&tb.scrollIntoView({inline:'center',block:'nearest'});
   if(innerWidth<=900)window.scrollTo({top:0})}
-function fitFor(g){if(!T)return;const L1=g&&layers[g].getLayers().length?layers[g]:null;
+function fitFor(g){if(g==='explore'){const ls=layers.explore.getLayers();try{if(ls.length)map.fitBounds(L.featureGroup(ls).getBounds().pad(.05))}catch(e){}return}if(!T)return;const L1=g&&layers[g].getLayers().length?layers[g]:null;
   try{if(g==='route'&&D.routeLine)map.fitBounds(D.routeLine.getBounds(),{padding:[30,30]});else if(L1){const b=L.featureGroup(L1.getLayers()).getBounds();if(b.isValid())map.fitBounds(b.pad(.1),{maxZoom:15})}else map.setView([T.dest.lat,T.dest.lon],12)}catch(e){}}
 
 /* ================= geocoding: Photon, poi Nominatim ================= */
@@ -298,7 +311,8 @@ function openTrip(t,isNew){T=t;D={};Object.values(layers).forEach(l=>l.clearLaye
   $('#kpis').classList.remove('hide');kpis();
   L.marker([set.start.lat,set.start.lon],{icon:pinIcon(COL.start,'',true)}).bindPopup(`<b>${esc(set.start.name)}</b><br>Partenza`).addTo(baseLayer);
   L.marker([t.dest.lat,t.dest.lon],{icon:pinIcon(COL.dest,'',true)}).bindPopup(`<b>${esc(t.dest.name)}</b><br>Centro`).addTo(baseLayer);
-  secs.forEach(s=>{if(s.id!=='s-plan')s.innerHTML=`<h2>${s.dataset.tab}</h2><div class="loading"><span class="spin"></span>Carico i dati…</div>`});
+  if(t.spot)L.marker([t.spot.lat,t.spot.lon],{icon:pinIcon(COL.area,'★',true)}).bindPopup(`<b>${esc(t.spot.name||'Sosta scelta')}</b><br>La sosta scelta in Esplora`).addTo(baseLayer);
+  secs.forEach(s=>{if(s.id!=='s-plan'&&s.id!=='s-explore')s.innerHTML=`<h2>${s.dataset.tab}</h2><div class="loading"><span class="spin"></span>Carico i dati…</div>`});
   show('s-route');
   loadRoute();loadLocal();loadWide();loadWx()}
 function kpis(){const r=D.route,c=costs();$('#kpis').innerHTML=`<div><span>Andata</span><b>${r?km(r.dist):'…'}</b></div><div><span>Guida camper</span><b>${r?hm(r.time):'…'}</b></div><div><span>Costo A/R</span><b>${r?eur(c.total):'…'}</b></div>`}
@@ -338,7 +352,7 @@ function renderRoute(){const r=D.route,c=costs(),t=T,n=nights(t);
 
 /* ================= Overpass ================= */
 const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
-async function overpass(q){let last;for(const u of OVP){try{return await getJSON(u,{method:'POST',body:'data='+enc(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}},70000)}catch(e){last=e}}throw last}
+async function overpass(q,ms=70000){let last;for(const u of OVP){try{return await getJSON(u,{method:'POST',body:'data='+enc(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}},ms)}catch(e){last=e}}throw last}
 const ll=e=>e.lat!=null?[e.lat,e.lon]:e.center?[e.center.lat,e.center.lon]:null;
 
 const HERITAGE=['ralph lauren','polo ralph','rrl','barbour','filson','woolrich','belstaff','levi','red wing','timberland','napapijri','fay','peuterey','stone island','c.p. company','cp company','brooks brothers','tommy hilfiger','lacoste','fred perry','carhartt','schott','paul & shark','paul&shark','harmont','north sails','sebago','clarks','dr. martens','dr martens','k-way','colmar','aspesi','boggi','hackett','gant','the north face','patagonia','l.l.bean','wrangler','lee','diesel','replay','blauer','herno','moncler','save the duck','ciesse','tod\'s','hogan','church','barena','sun68','manifattura ceccarelli','orvis','alpha industries','golden goose','superga','birkenstock','asics','new balance','vans','closed','massimo dutti','sandro','ermenegildo','zegna','corneliani','brunello','canali','etro','loro piana','luisa spagnoli','max mara','marina rinaldi','liu jo','pinko','twinset','elena miro','penny black','weekend max'];
@@ -537,6 +551,92 @@ function renderWx(){const w=D.wx,sec=$('#s-wx');if(!w)return;const c=w.data[0].d
   <div class="wscroll"><table class="wtable"><thead><tr><th>Punto</th>${c.time.map(d=>`<th>${esc(cap(fdate(d,{weekday:'short',day:'numeric'})))}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
   if(curTab==='s-wx')fitFor('wx')}
 function renderWxMini(){const box=$('#wxMini'),w=D.wx;if(!box||!w)return;box.innerHTML=`<div class="card"><h3>Meteo a ${esc(T.dest.name)}</h3><p class="note" style="margin-bottom:8px">${esc(wxHead(w))}</p>${dayCards(w.data[0].daily,w.mode)}</div>`}
+
+/* ================= esplora una zona ================= */
+const REG_IT=[['IT-42','Liguria'],['IT-21','Piemonte'],['IT-23',"Valle d'Aosta"],['IT-25','Lombardia'],['IT-32','Trentino-Alto Adige'],['IT-34','Veneto'],['IT-36','Friuli-Venezia Giulia'],['IT-45','Emilia-Romagna'],['IT-52','Toscana'],['IT-55','Umbria'],['IT-57','Marche'],['IT-62','Lazio'],['IT-65','Abruzzo'],['IT-67','Molise'],['IT-72','Campania'],['IT-75','Puglia'],['IT-77','Basilicata'],['IT-78','Calabria'],['IT-82','Sicilia'],['IT-88','Sardegna']];
+const REG_EU=[['FR-PAC',"Provenza-Costa Azzurra"],['FR-ARA','Alvernia-Rodano-Alpi'],['FR-OCC','Occitania'],['CH','Svizzera'],['AT','Austria'],['SI','Slovenia']];
+const regName=c=>([...REG_IT,...REG_EU].find(r=>r[0]===c)||[,c])[1];
+const LAND=[['mare','Mare'],['lago','Lago'],['montagna','Montagna'],['collina','Collina'],['citta','Città']];
+const KIND=[['area','Aree sosta'],['camp','Campeggi'],['park','Parcheggi camper'],['dump','Camper service']];
+const SVC=[['power','Corrente'],['water','Acqua'],['dump','Scarico'],['dog','Cani ammessi'],['free','Gratuito'],['sup','Custodito']];
+let EXs=Object.assign({reg:'IT-52',land:[],kind:['area','camp','park'],svc:[],sort:'near'},LS.get('rc_explore',{}));
+const EXC={};let exPage=30,exBusy=false;
+const areaSel=c=>c.length===2?`area["ISO3166-1"="${c}"]["admin_level"="2"]`:`area["ISO3166-2"="${c}"]["boundary"="administrative"]`;
+const SPOTQ='nwr["tourism"~"^(caravan_site|camp_site)$"](area.r);nwr["amenity"="parking"]["motorhome"~"yes|designated"](area.r);nwr["amenity"="sanitary_dump_station"](area.r);';
+function exChips(){const c=(el,list,sel)=>{$(el).innerHTML=list.map(([v,l])=>`<button type="button" aria-pressed="${sel.includes(v)}" data-v="${v}">${l}</button>`).join('')};
+  c('#xLand',LAND,EXs.land);c('#xKind',KIND,EXs.kind);c('#xSvc',SVC,EXs.svc)}
+function initExplore(){$('#xReg').innerHTML=`<optgroup label="Italia">${REG_IT.map(r=>`<option value="${r[0]}">${esc(r[1])}</option>`).join('')}</optgroup><optgroup label="Oltre confine">${REG_EU.map(r=>`<option value="${r[0]}">${esc(r[1])}</option>`).join('')}</optgroup>`;
+  $('#xReg').value=EXs.reg;$('#xSort').value=EXs.sort;exChips()}
+[['#xLand','land'],['#xKind','kind'],['#xSvc','svc']].forEach(([el,k])=>$(el).addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(!b)return;const v=b.dataset.v,a=EXs[k];
+  EXs[k]=a.includes(v)?a.filter(x=>x!==v):a.concat(v);LS.set('rc_explore',EXs);exChips();if(EXC[EXs.reg]&&!exBusy)(k==='land'?runExplore():applyExplore())}));
+$('#xReg').addEventListener('change',()=>{EXs.reg=$('#xReg').value;LS.set('rc_explore',EXs)});
+$('#xSort').addEventListener('change',()=>{EXs.sort=$('#xSort').value;LS.set('rc_explore',EXs);if(EXC[EXs.reg])applyExplore()});
+$('#exForm').addEventListener('submit',e=>{e.preventDefault();runExplore()});
+$('#toExplore').onclick=()=>show('s-explore');
+function exStatus(m){$('#exRes').innerHTML=`<div class="loading"><span class="spin"></span>${esc(m)}</div>`}
+async function runExplore(){if(exBusy)return;exBusy=true;$('#xGo').disabled=true;const code=EXs.reg;
+  try{if(!EXC[code]){exStatus(`Scarico tutte le soste in ${regName(code)}… può volerci mezzo minuto.`);
+      const j=await overpass(`[out:json][timeout:180];${areaSel(code)}->.r;(${SPOTQ});out center tags;`,190000);
+      const spots=[],seen=new Set();(j.elements||[]).forEach(e=>{const p=ll(e),g=e.tags||{};if(!p)return;const id='x'+e.type+e.id;if(seen.has(id))return;seen.add(id);
+        let kind=g.tourism==='caravan_site'?'area':g.tourism==='camp_site'?'camp':g.amenity==='parking'?'park':g.amenity==='sanitary_dump_station'?'dump':'';if(!kind)return;
+        if(kind==='camp'&&(g.caravans==='no'||g.motorhome==='no'||g.tents_only==='yes'))return;
+        spots.push({id,lat:p[0],lon:p[1],t:g,name:g.name||'',kind,dS:hav(set.start.lat,set.start.lon,p[0],p[1])})});
+      const dumps=spots.filter(s=>s.kind==='dump');spots.forEach(s=>{if(s.kind!=='dump')s.dump=dumps.some(d=>Math.abs(d.lat-s.lat)<.002&&Math.abs(d.lon-s.lon)<.003)});
+      if(!spots.length)throw{empty:true};EXC[code]={spots,flags:{},elev:null}}
+    await ensureFlags(code);exPage=30;applyExplore()}
+  catch(e){$('#exRes').innerHTML=e&&e.empty?`<div class="warnbox">In ${esc(regName(code))} non trovo soste mappate: strano, riprova tra poco.</div>`:`<div class="warnbox">Il server di OpenStreetMap non ha risposto in tempo (le regioni grandi pesano). Riprova tra un minuto.</div><button class="btn" id="xRetry">Riprova</button>`;
+    const r=$('#xRetry');if(r)r.onclick=runExplore}
+  exBusy=false;$('#xGo').disabled=false}
+async function ensureFlags(code){const C=EXC[code];
+  for(const l of EXs.land){
+    if(['mare','lago','citta'].includes(l)&&!C.flags[l]){exStatus({mare:'Cerco le soste vicino al mare…',lago:'Cerco le soste vicino ai laghi…',citta:'Cerco le soste vicino alle città…'}[l]);
+      const near={mare:'way["natural"="coastline"](area.r)->.n;',lago:'nwr["natural"="water"]["water"~"^(lake|reservoir)$"]["wikidata"](area.r)->.n;',citta:'node["place"="city"](area.r)->.n;'}[l];
+      const rd={mare:2500,lago:2500,citta:8000}[l];
+      const j=await overpass(`[out:json][timeout:180];${areaSel(code)}->.r;(${SPOTQ})->.all;${near}nwr.all(around.n:${rd});out ids;`,190000);
+      C.flags[l]=new Set((j.elements||[]).map(e=>'x'+e.type+e.id))}
+    if((l==='montagna'||l==='collina')&&!C.elev){exStatus('Calcolo l\'altitudine di ogni sosta…');const E={},S=C.spots;
+      for(let i=0;i<S.length;i+=100){const b=S.slice(i,i+100);try{const j=await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${b.map(s=>s.lat.toFixed(4)).join(',')}&longitude=${b.map(s=>s.lon.toFixed(4)).join(',')}`,{},20000);(j.elevation||[]).forEach((v,k)=>{if(v!=null)E[b[k].id]=v})}catch(e){}}
+      C.elev=E}}}
+const elevOf=(C,s)=>C.elev?C.elev[s.id]:undefined;
+function passLand(C,s){if(!EXs.land.length)return true;const el=elevOf(C,s);return EXs.land.some(l=>l==='montagna'?el>=600:l==='collina'?(el>=150&&el<600):!!(C.flags[l]&&C.flags[l].has(s.id)))}
+function landTags(C,s){const o=[];if(C.flags.mare&&C.flags.mare.has(s.id))o.push('Mare');if(C.flags.lago&&C.flags.lago.has(s.id))o.push('Lago');if(C.flags.citta&&C.flags.citta.has(s.id))o.push('Vicino a una città');
+  const el=elevOf(C,s);if(el!=null)o.push(`${Math.round(el)} m · ${el>=600?'Montagna':el>=150?'Collina':'Pianura'}`);return o}
+function passSvc(s){const g=s.t;return EXs.svc.every(v=>v==='power'?yes(g.power_supply)||yes(g.electricity):v==='water'?yes(g.drinking_water)||yes(g.water_point)||s.kind==='dump':v==='dump'?s.dump||s.kind==='dump'||yes(g.sanitary_dump_station):v==='dog'?yes(g.dog)||g.dogs==='yes':v==='free'?g.fee==='no':v==='sup'?yes(g.supervised):true)}
+const placeOf=g=>g['addr:city']||g['addr:village']||g['addr:town']||g['addr:hamlet']||g['is_in:municipality']||'';
+function applyExplore(){const code=EXs.reg,C=EXC[code];if(!C)return;
+  const L1=C.spots.filter(s=>EXs.kind.includes(s.kind)&&passLand(C,s)&&passSvc(s));
+  L1.sort(EXs.sort==='score'?(a,b)=>score(b)-score(a)||a.dS-b.dS:(a,b)=>a.dS-b.dS);
+  layers.explore.clearLayers();const rnd=L.canvas({padding:.3});
+  L1.slice(0,1500).forEach(s=>{const m=L.circleMarker([s.lat,s.lon],{renderer:rnd,radius:s.kind==='dump'?5:7,color:'#fff',weight:1.5,fillColor:COL[s.kind],fillOpacity:.95});
+    m.bindPopup(`<b>${esc(s.name||kindLabel(s.kind))}</b><br>${esc(kindLabel(s.kind))}${placeOf(s.t)?' · '+esc(placeOf(s.t)):''}<br>${esc(landTags(C,s).join(' · '))}<br><button class="small btn-blue" style="margin-top:8px" data-use="${s.id}">Usa come meta</button>`);
+    m.on('click',()=>hl(s.id));markers[s.id]=m;layers.explore.addLayer(m)});
+  const by=k=>L1.filter(s=>s.kind===k).length,landTxt=EXs.land.length?EXs.land.map(l=>LAND.find(x=>x[0]===l)[1].toLowerCase()).join(' o '):'';
+  const noElev=EXs.land.some(l=>l==='montagna'||l==='collina')&&C.elev&&!Object.keys(C.elev).length;
+  $('#exRes').innerHTML=`<div class="card"><h3>${L1.length} soste in ${esc(regName(code))}${landTxt?' · '+esc(landTxt):''}</h3>
+   <div class="tags">${KIND.filter(k=>EXs.kind.includes(k[0])).map(k=>`<span class="tag" style="border-color:${COL[k[0]]}">${k[1]}: ${by(k[0])}</span>`).join('')}</div>
+   <p class="note" style="margin-top:8px">Distanze da Serino in linea d'aria, maggiorate del 25% per stimare la strada. Tocca "Usa come meta" per avere percorso, costi, trattorie, negozi e meteo di quella zona.</p>
+   ${noElev?'<p class="note" style="color:var(--bad)">Il servizio delle altitudini non ha risposto: il filtro montagna/collina non è applicabile adesso.</p>':''}</div>
+   ${L1.length?'':'<div class="warnbox">Nessuna sosta con questi filtri. Togli un servizio o un paesaggio.</div>'}
+   ${L1.slice(0,exPage).map((s,i)=>{const g=s.t,sc=score(s),w=web(g),lt=landTags(C,s),km1=s.dS*1.25;return `<article class="item" id="it-${s.id}" data-id="${s.id}">
+    <div class="ihead"><span class="pin" style="background:${COL[s.kind]}">${i+1}</span><div><div class="iname">${esc(s.name||kindLabel(s.kind))}</div><div class="itype">${esc(kindLabel(s.kind))}${placeOf(g)?' · '+esc(placeOf(g)):''}${s.kind!=='dump'?` <span class="safety" title="Indizi di sicurezza ${sc}/6">${[0,1,2,3,4,5].map(j=>`<i class="${j<sc?'on':''}"></i>`).join('')}</span>`:''}</div></div>
+    <div class="dist">~${Math.round(km1)} km<small>~${hm(km1/62*3600)} da Serino</small></div></div>
+    <div class="tags">${lt.map(x=>`<span class="tag blue">${esc(x)}</span>`).join('')}${svcTags(s)}</div>
+    <div class="links"><button class="small btn-blue" type="button" data-use="${s.id}">Usa come meta</button><a href="${p4n(s.lat,s.lon)}" target="_blank" rel="noopener">park4night qui</a><a href="${gmaps(s.lat,s.lon)}" target="_blank" rel="noopener">Mappa</a>${w?`<a href="${esc(w)}" target="_blank" rel="noopener">Sito</a>`:''}</div></article>`}).join('')}
+   ${L1.length>exPage?`<button class="btn" type="button" id="xMore" style="width:100%">Mostra altre ${Math.min(30,L1.length-exPage)} (di ${L1.length})</button>`:''}`;
+  const mo=$('#xMore');if(mo)mo.onclick=()=>{exPage+=30;applyExplore()};
+  bindItems($('#exRes'),'explore');if(curTab==='s-explore')fitFor('explore')}
+const kindLabel=k=>({area:'Area sosta camper',camp:'Campeggio',park:'Parcheggio camper',dump:'Camper service'})[k];
+async function useSpot(id){const C=EXC[EXs.reg],s=C&&C.spots.find(x=>x.id===id);if(!s)return;map.closePopup();
+  const btns=document.querySelectorAll(`[data-use="${id}"]`);btns.forEach(b=>{b.disabled=true;b.textContent='Preparo il viaggio…'});
+  let town=placeOf(s.t),dest=null;
+  if(!town){try{const j=await getJSON(`https://nominatim.openstreetmap.org/reverse?lat=${s.lat}&lon=${s.lon}&format=jsonv2&zoom=14&accept-language=it`,{},10000);const a=j.address||{};town=a.village||a.town||a.city||a.municipality||a.suburb||a.hamlet||''}catch(e){}}
+  if(town){try{const r=await geoSearch(town+', '+regName(EXs.reg),5);const c=r.find(p=>hav(p.lat,p.lon,s.lat,s.lon)<12);if(c)dest={name:c.name,lat:c.lat,lon:c.lon}}catch(e){}}
+  if(!dest)dest={name:town||s.name||kindLabel(s.kind),lat:s.lat,lon:s.lon};
+  dest.sub=[s.name?'sosta: '+s.name:'',regName(EXs.reg)].filter(Boolean).join(' · ');
+  let d1=$('#fD1').value,d2=$('#fD2').value;if(!d1){fillForm();d1=$('#fD1').value;d2=$('#fD2').value}if(d2<d1)d2=d1;
+  openTrip({id:Date.now().toString(36),dest,d1,d2,spot:{id:s.id,name:s.name,lat:s.lat,lon:s.lon}},true)}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-use]');if(b&&!b.disabled){e.stopPropagation();useSpot(b.dataset.use)}},true);
+initExplore();
 
 /* ================= boot ================= */
 fillForm();renderTabs();renderTrips();legend([[COL.start,'Rimessaggio Serino']]);
